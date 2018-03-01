@@ -1,7 +1,9 @@
 # Let the agents do the tlking (data and code)
 
-Data and code accompanying Rick Janssen's PhD thesis *Let the agents do the talking*.
+Data and code accompanying **Rick Janssen's** PhD thesis *Let the agents do the talking*.
 More details are available in the thesis itself (not yet published).
+
+Most of the code and data are (c) Rick Janseen, with contributions from Scott R. Moisik and Dan Dediu.
 
 This repository is structured by chapters:
 
@@ -15,3 +17,6 @@ This repository is structured by chapters:
     + `data` contains the speaker model (`_JD2.speaker.bz2`) and the results from running the model (`_summary.csv.bz2`) BZ2-compressed
     + `r_scripts` contains the Rmarkdown script for analyzing the data (`rick-hard-palate-chains.Rmd`)
     + `stat_report` contains the output of the Rmarkdown script bz2-compressed and split into volumnes of less than 20Mb (`rick-hard-palate-chains.html`).
+
+Unless otherwise specified, the license governing these is **[TO BE ADDED]**.
+
