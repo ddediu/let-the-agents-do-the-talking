@@ -14,4 +14,4 @@ This repository is structured by chapters:
   - `chapter6` contains the data and code relevant for **Chapter 6**, which deals with the influence of hard palate shape on vowel learning and production across generations of iterated language learning:
     + `data` contains the speaker model (`_JD2.speaker.bz2`) and the results from running the model (`_summary.csv.bz2`) BZ2-compressed
     + `r_scripts` contains the Rmarkdown script for analyzing the data (`rick-hard-palate-chains.Rmd`)
-    + `stat_report` contains the output of the Rmarkdown script (`rick-hard-palate-chains.html`).
+    + `stat_report` contains the output of the Rmarkdown script bz2-compressed and split into volumnes of less than 20Mb (`rick-hard-palate-chains.html`).
