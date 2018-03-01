@@ -1,0 +1,2036 @@
+---
+title: "Larynx height influences on vowel production"
+author: "Dan Dediu (with Rick Janssen & Scott Moisik)"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    fig_caption: yes
+    highlight: textmate
+    theme: readable
+    toc: yes
+    toc_depth: 6
+  pdf_document:
+    toc: yes
+    toc_depth: '6'
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, echo=FALSE, warning=FALSE, message=FALSE}
+library(ggplot2);
+library(ggfortify);
+library(reshape2);
+library(fpc);
+library(factoextra);
+library(cluster);
+library(lme4);
+library(lmerTest);
+library(scatterplot3d);
+library(rgl);
+library(shapes);
+library(parallel);
+library(plyr);
+library(dplyr);
+
+# Normalize a vector to 0..1:
+normalize = function(x) (x-min(x,na.rm=TRUE))/(max(x,na.rm=TRUE)-min(x,na.rm=TRUE));
+
+# Mapping between colors, LEN and colors (for the 3D interactive plots):
+cols4vowels <- matrix(c(gray(0.5),gray(0.0),     # schwa
+                        "lightblue","blue",      # a
+                        "lightyellow","yellow",  # ae
+                        "lawngreen","green4",    # i
+                        "darkorange","firebrick" # u
+                        ),
+                      ncol=2, byrow=TRUE);
+rownames(cols4vowels) <- c("schwa", "a", "ae", "i", "u");
+cols4vowels2D <- alpha(c(gray(0.0), "blue", "yellow1", "green2", "firebrick2"),0.5); # schwa, a, ae, i, u
+
+# Display significance stars:
+print.signif.stars <- function(p, markdown=TRUE) ifelse(p < 0.001, ifelse(markdown,"\\*\\*\\*","***"), 
+                                                        ifelse(p < 0.01, ifelse(markdown,"\\*\\*","**"), 
+                                                               ifelse(p < 0.05, ifelse(markdown,"\\*","*"), "")))
+# Auxiliary functions for pretty printing regression coefficients:
+print.lm.coeffs.as.table <- function(m, show.R2=TRUE, markdown=TRUE, as.data.frame=FALSE)
+{
+  # Model summaries:
+  s.lm <- summary(m); s.aov <- summary(aov(m))[[1]];
+  # Extract the variables and their types:
+  vars <- attr(m$terms, "dataClasses"); iv <- vars[1]; dvs <- vars[-1]; 
+  # and the interactions:
+  ints <- setdiff(trimws(rownames(s.aov)), c(names(dvs),"Residuals")); names(ints) <- ints; 
+  ints <- vapply(strsplit(ints,":",fixed=TRUE), function(x) paste0(dvs[x[1]],":",dvs[x[2]]), character(1));
+  predictors <- c(dvs, ints);
+  tmp <- vapply(seq_along(predictors), function(i)
+  {
+    x <- predictors[i]; x.name <- names(predictors)[i];
+    if( x == "logical" )
+    {
+      p <- s.lm$coefficients[paste0(x.name,"TRUE"),"Pr(>|t|)"];
+      paste0(ifelse(markdown && p < 0.05,"*",""),
+             sprintf("%.2g",s.lm$coefficients[paste0(x.name,"TRUE"),"Estimate"]), " (", sprintf("%.2g",p), print.signif.stars(p, markdown), ")",
+             ifelse(markdown && p < 0.05,"*",""));
+    } else if( x == "numeric" || x == "numeric:numeric" )
+    {
+      p <- s.lm$coefficients[x.name,"Pr(>|t|)"];
+      paste0(ifelse(markdown && p < 0.05,"*",""),
+             sprintf("%.2g",s.lm$coefficients[x.name,"Estimate"]), " (", sprintf("%.2g",p), print.signif.stars(p, markdown), ")",
+             ifelse(markdown && p < 0.05,"*",""));
+    } else if( length(grep("factor",x,fixed=TRUE))==1 )
+    {
+      p <- s.aov[trimws(rownames(s.aov))==x.name,"Pr(>F)"];
+      paste0(ifelse(markdown && p < 0.05,"*",""),
+             ".", " (", sprintf("%.2g",p), print.signif.stars(p, markdown), ")",
+             ifelse(markdown && p < 0.05,"*",""));
+    }
+  }, character(1));
+  names(tmp) <- sub(")","",sub("I(","",names(predictors),fixed=TRUE),fixed=TRUE); 
+  if( markdown ) names(tmp) <- paste0("**",names(tmp),"**");
+  # Add R^2:
+  if(show.R2)
+  {
+    tmp <- c(tmp, sprintf("%.1f%%",100*s.lm$adj.r.squared)); 
+    if( markdown )
+    {
+      names(tmp)[length(tmp)] <- "***adjusted R^2^***";
+      tmp[length(tmp)] <- paste0("***",tmp[length(tmp)],"***");
+    } else
+    {
+      names(tmp)[length(tmp)] <- "adjusted R^2";
+    }
+  }
+  # Return value:
+  if( as.data.frame )
+  {
+    df <- matrix(tmp, nrow=1); colnames(df) <- names(tmp); return (as.data.frame(df));
+  } else
+  {
+    return (tmp);
+  }
+}
+
+# http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_(ggplot2)/
+#
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+```{r load and pre-process original files, include=FALSE}
+# Combine the fixed and mobile hyoid conditions:
+results.fixed <- read.table("./larynx-height-fixed-hyoid.csv", sep=",", header=TRUE, quote="", stringsAsFactors=FALSE);
+results.fixed <- cbind("fixed.hyoid"=TRUE, 
+                       "condition"=results.fixed$condition,
+                       "LEN"=vapply(as.character(results.fixed$condition), function(x) switch(x, "larynx_1"=-9.45, "larynx_3"=-8.85, "larynx_5"=-8.25, "larynx_7"=-7.65, "larynx_9"=-7.05, "larynx_11"=-6.45, NA), numeric(1)),
+                       results.fixed[,c("vowel","replication","F1_target","F2_target","F3_target","F4_target","F5_target","HX_target")],
+                       "HY_target"=results.fixed$hyoidY_target,
+                       results.fixed[,c("JA_target","LP_target","LD_target","TCX_target","TCY_target","TTX_target","TTY_target","TBX_target","TBY_target","hyoidX_target","hyoidY_target","svtvMinX_target","svtvMinY_target","svtvMaxX_target","svtvMaxY_target","svthMinX_target","svthMinY_target","svthMaxX_target","svthMaxY_target","F1_alt","F2_alt","F3_alt","F4_alt","F5_alt","HX_alt")],
+                       "HY_alt"=results.fixed$hyoidY_alt,
+                       results.fixed[,c("JA_alt","LP_alt","LD_alt","TCX_alt","TCY_alt","TTX_alt","TTY_alt","TBX_alt","TBY_alt","hyoidX_alt","hyoidY_alt","svtvMinX_alt","svtvMinY_alt","svtvMaxX_alt","svtvMaxY_alt","svthMinX_alt","svthMinY_alt","svthMaxX_alt","svthMaxY_alt","F1_elite","F2_elite","F3_elite","F4_elite","F5_elite","HX_elite")],
+                       "HY_elite"=results.fixed$hyoidY_elite,
+                       results.fixed[,c("JA_elite","LP_elite","LD_elite","TCX_elite","TCY_elite","TTX_elite","TTY_elite","TBX_elite","TBY_elite","hyoidX_elite","hyoidY_elite","svtvMinX_elite","svtvMinY_elite","svtvMaxX_elite","svtvMaxY_elite","svthMinX_elite","svthMinY_elite","svthMaxX_elite","svthMaxY_elite","generation")]); 
+results.mobile <- read.table("./larynx-height-mobile-hyoid.csv", sep=",", header=TRUE, quote="", stringsAsFactors=FALSE);
+results.mobile <- cbind("fixed.hyoid"=FALSE, 
+                        "condition"=results.mobile$condition,
+                        "LEN"=vapply(as.character(results.mobile$condition), function(x) switch(x, "larynx_1"=-9.45, "larynx_3"=-8.85, "larynx_5"=-8.25, "larynx_7"=-7.65, "larynx_9"=-7.05, "larynx_11"=-6.45, NA), numeric(1)),
+                        results.mobile[,2:ncol(results.mobile)]); 
+results <- rbind(results.fixed, results.mobile);
+
+# Compute the SVTh/(SVTv + SVTh) ratio as per our interpretation of Nishimura (2006) for both the target and the elite:
+results$SVTv_target <- sqrt((results$svtvMaxX_target - results$svtvMinX_target)^2 + (results$svtvMaxY_target - results$svtvMinY_target)^2); 
+results$SVTh_target <- sqrt((results$svthMaxX_target - results$svthMinX_target)^2 + (results$svthMaxY_target - results$svthMinY_target)^2); 
+results$VTRatio_target <- (results$SVTh_target / (results$SVTh_target + results$SVTv_target));
+results$SVTv_elite <- sqrt((results$svtvMaxX_elite - results$svtvMinX_elite)^2 + (results$svtvMaxY_elite - results$svtvMinY_elite)^2); 
+results$SVTh_elite <- sqrt((results$svthMaxX_elite - results$svthMinX_elite)^2 + (results$svthMaxY_elite - results$svthMinY_elite)^2); 
+results$VTRatio_elite <- (results$SVTh_elite / (results$SVTh_elite + results$SVTv_elite));
+
+
+# Per replication inter-vowel distances:
+tmp <- unique(results[,c("fixed.hyoid", "condition", "replication")]);
+vowel.pairs <- expand.grid("vowel1"=as.character(unique(results$vowel)), "vowel2"=as.character(unique(results$vowel)), stringsAsFactors=FALSE); vowel.pairs <- vowel.pairs[ vowel.pairs$vowel1 < vowel.pairs$vowel2, ]; vowel.pairs <- vowel.pairs[ order(vowel.pairs$vowel1, vowel.pairs$vowel2), ];
+intervowel.dists <- do.call(rbind, mclapply(1:nrow(tmp), function(i)
+{
+  s <- results[ results$fixed.hyoid == tmp$fixed.hyoid[i] & results$condition == tmp$condition[i] & results$replication == tmp$replication[i], ];
+  ret.val <- data.frame(s[1, c("fixed.hyoid", "condition", "LEN", "VTRatio_elite", "replication"), drop=FALSE], 
+                        vowel.pairs, "vowel.pair"=paste0(vowel.pairs$vowel1,"-",vowel.pairs$vowel2),
+                        do.call(rbind,lapply(1:nrow(vowel.pairs), function(j) 
+                        {
+                          s1 <- s[ s$vowel %in% c(vowel.pairs$vowel1[j],vowel.pairs$vowel2[j]), ];
+                          return (data.frame("dist_target_F1F5"=as.numeric(dist(s1[, c("F1_target", "F2_target", "F3_target", "F4_target", "F5_target")])),
+                                             "dist_elite_F1F5"= as.numeric(dist(s1[, c("F1_elite",  "F2_elite",  "F3_elite",  "F4_elite",  "F5_elite" )])),
+                                             "dist_target_F1F2"=as.numeric(dist(s1[, c("F1_target", "F2_target")])),
+                                             "dist_elite_F1F2"= as.numeric(dist(s1[, c("F1_elite",  "F2_elite" )]))));
+                        })));
+}, mc.cores=4));
+
+# Procrustes distances between the elite and target vowel systems:
+proc.target.elite.dists <- do.call(rbind, mclapply(1:nrow(tmp), function(i)
+{
+  s <-  results[ results$fixed.hyoid == tmp$fixed.hyoid[i] & results$condition == tmp$condition[i] & results$replication == tmp$replication[i], ];
+  s1 <- as.matrix(s[ , c("F1_target", "F2_target", "F3_target", "F4_target", "F5_target", "F1_elite", "F2_elite", "F3_elite", "F4_elite", "F5_elite")]); rownames(s1) <- s$vowel;
+  ret.val <- data.frame(s[1, c("fixed.hyoid", "condition", "LEN", "VTRatio_elite", "replication"), drop=FALSE], 
+                        "Proc.rmsd"=procOPA(s1[,c("F1_target","F2_target","F3_target","F4_target","F5_target")], s1[,c("F1_elite","F2_elite","F3_elite","F4_elite","F5_elite")])$rmsd);
+}, mc.cores=4));
+
+
+# Levels and errors:
+results$vowel <- factor(results$vowel, levels=c("schwa", "a", "ae", "i", "u" ));
+results <- cbind(results,
+                 "F1.error"=(results$F1_target - results$F1_elite)^2,
+                 "F2.error"=(results$F2_target - results$F2_elite)^2,
+                 "F3.error"=(results$F3_target - results$F3_elite)^2,
+                 "F4.error"=(results$F4_target - results$F4_elite)^2,
+                 "F5.error"=(results$F5_target - results$F5_elite)^2); # add the errors between the target and the elite acoustics
+
+# Compute the normalized HY:
+# For each LEN:
+#    HY_min = -2((LEN + 6.45) / -3) -4, and
+#    HY_max = -1.5 ((LEN + 6.45) / -3) -3.5
+#    HY_norm = (HY - HY_min) / (HY_max - HY_min)
+HY_min <- -2.0 * ((results$LEN + 6.45) / -3) - 4.0;
+HY_max <- -1.5 * ((results$LEN + 6.45) / -3) - 3.5;
+results$HY_target_norm  <- (results$HY_target - HY_min) / (HY_max - HY_min);
+results$HY_alt_norm     <- (results$HY_alt    - HY_min) / (HY_max - HY_min);
+results$HY_elite_norm   <- (results$HY_elite  - HY_min) / (HY_max - HY_min);
+rm(HY_min, HY_max);
+
+# Just the elites:
+results.elite <- results[, c("fixed.hyoid", "condition", "LEN", "vowel", "replication", "F1_elite", "F2_elite", "F3_elite", "F4_elite", "F5_elite", "F1.error", "F2.error", "F3.error", "F4.error", "F5.error",  "HX_elite", "HY_elite", "JA_elite", "LP_elite", "LD_elite", "TCX_elite", "TCY_elite", "TTX_elite", "TTY_elite", "TBX_elite", "TBY_elite", "hyoidX_elite", "hyoidY_elite", "SVTv_elite", "SVTh_elite", "VTRatio_elite", "generation") ];
+names(results.elite) <- c("fixed.hyoid", "condition", "LEN", "vowel", "replication", "F1", "F2", "F3", "F4", "F5", "F1.error", "F2.error", "F3.error", "F4.error", "F5.error",  "HX", "HY", "JA", "LP", "LD", "TCX", "TCY", "TTX", "TTY", "TBX", "TBY", "hyoidX", "hyoidY", "SVTv", "SVTh", "VTRatio", "generation");
+results.elite$vowel <- factor(results.elite$vowel, levels=c("schwa", "a", "ae", "i", "u" ));
+
+# Long format collapsing formants and parameters:
+results.long <- melt(results, 
+                     id.vars=c("fixed.hyoid", "LEN", "vowel", "replication"),
+                     measure.vars=c("F1_elite", "F2_elite", "F3_elite", "F4_elite", "F5_elite",
+                                    "F1.error", "F2.error", "F3.error", "F4.error", "F5.error",
+                                    "HX_elite", "HY_elite", "JA_elite", "LP_elite", "LD_elite", 
+                                    "TCX_elite", "TCY_elite", "TTX_elite", "TTY_elite", "TBX_elite", "TBY_elite", 
+                                    "hyoidX_elite", "hyoidY_elite", "SVTv_elite", "SVTh_elite", "VTRatio_elite", 
+                                    "generation"),
+                     variable.name="variable", value.name="value");
+results.long$vowel <- factor(results.long$vowel, levels=c("schwa", "a", "ae", "i", "u" ));
+```
+
+```{r standard VTL2 values, echo=FALSE, message=FALSE, results='hide'}
+# The "standard" VTL2 LEN and VTLratio values:
+std.VTL2.LEN <- -7.95;
+lm.VTRatio.vs.LEN.fixed  <- lm(VTRatio_elite ~ LEN + I(LEN^2) + vowel, data=results[ results$fixed.hyoid == TRUE, ]); summary(lm.VTRatio.vs.LEN.fixed); 
+std.VTL2.VTRatio.fixed <- predict(lm.VTRatio.vs.LEN.fixed, newdata=data.frame("vowel"=c("schwa","a","ae","i","u"), "LEN"=std.VTL2.LEN), se.fit=TRUE, interval="confidence"); names(std.VTL2.VTRatio.fixed$fit) <- (names(std.VTL2.VTRatio.fixed$se.fit) <- c("schwa","a","ae","i","u"));
+lm.VTRatio.vs.LEN.mobile <- lm(VTRatio_elite ~ LEN + I(LEN^2) + vowel, data=results[ results$fixed.hyoid == FALSE, ]); summary(lm.VTRatio.vs.LEN.mobile); 
+std.VTL2.VTRatio.mobile <- predict(lm.VTRatio.vs.LEN.mobile, newdata=data.frame("vowel"=c("schwa","a","ae","i","u"), "LEN"=std.VTL2.LEN), se.fit=TRUE, interval="confidence"); names(std.VTL2.VTRatio.mobile$fit) <- (names(std.VTL2.VTRatio.mobile$se.fit) <- c("schwa","a","ae","i","u"));
+std.VTL2.VTRatio <- rbind(data.frame("hyoid"="fixed",
+                                     "LEN"=std.VTL2.LEN,
+                                     "vowel"=c("schwa","a","ae","i","u"),
+                                     as.matrix(std.VTL2.VTRatio.fixed$fit)),
+                          data.frame("hyoid"="mobile",
+                                     "LEN"=std.VTL2.LEN,
+                                     "vowel"=c("schwa","a","ae","i","u"),
+                                     as.matrix(std.VTL2.VTRatio.mobile$fit)));
+```
+
+
+## Data description
+
+Important parameters are if the hyoid is fixed or mobile (*fixed.hyoid*), the *condition* (or, equivalently, the numeric *LEN*; see Table below) describing where the hyoid is placed on the vertical dimension, the *vowel* (i, a, ae, schwa, and u), *replication*, and the *generation* when the best elite performance was reached.
+
+```{r echo=FALSE}
+tmp <- unique(results[,c("condition","LEN")]); tmp <- tmp[ order(tmp$LEN), ];
+knitr::kable(as.data.frame(tmp), row.names=FALSE, caption="Correspondence between 'condition' and 'LEN'.");
+```
+
+Each sound is characterized by the first five formants *F1* -- *F5* as well as by the following 16 articulatory parameters:
+
+  * *HX*, *HY*: **hyoid** position (horizontal and vertical) -- *N.B.* these will actually be ignored because the next two are more precise and valid,
+  * *hyoidX*, *hyoidY*: **hyoid** position (horizontal and vertical) as defined by Nishimura (2006),
+  * *JA*: **jaw angle**,
+  * *LP*: **lid protrusion**,
+  * *LD*: **lip distance**,
+  * *TCX*, *TCY*: **tongue body** position (horizontal and vertical),
+  * *TTX*, *TTY*: **tongue tip** position (horizontal and vertical),
+  * *TBX*, *TBY*: **tongue blade** position (horizontal and vertical),
+  * *SVTv*, *SVTh*, *VTRatio*: the vertical and hortizontal VT length (as defined by Nishimura, 2006) and the ratio of *SVTh*/(*SVTv* + *SVTh*). For comparison purposes, the LEN and elite VT ratio are very well correlated (overall: Pearson's *r* = `r sprintf("%.2f",(r <- cor.test(results$LEN, results$VTRatio_elite))$estimate)`, *p* = `r sprintf("%.3g",r$p.value)`); fixed hyoid: *r* = `r sprintf("%.2f",(r <- cor.test(results$LEN[results$fixed.hyoid == TRUE], results$VTRatio_elite[results$fixed.hyoid == TRUE]))$estimate)`, *p* = `r sprintf("%.3g",r$p.value)`); mobile hyoid: *r* = `r sprintf("%.2f",(r <- cor.test(results$LEN[results$fixed.hyoid == FALSE], results$VTRatio_elite[results$fixed.hyoid == FALSE]))$estimate)`, *p* = `r sprintf("%.3g",r$p.value)`)), and the figure below shows the relationship between the two:
+
+```{r relationship VTratio (elite) - LEN, echo=FALSE, message=FALSE, fig.width=13, fig.height=3, fig.cap="Quadratic regression of VTratio on LEN separately for fixed and mobile hyoid by vowel with 95% confidence intervals."}
+tmp <- results; 
+tmp$hyoid <- ifelse(tmp$fixed.hyoid, "fixed", "mobile");
+levels(tmp$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]");
+# Find intersection between fixed and mobile regression curves:
+int.coords <- NULL;
+for( vowel in levels(tmp$vowel) )
+{
+  m1 <- lm(VTRatio_elite ~ LEN + I(LEN^2), data=tmp[ tmp$vowel==vowel & tmp$hyoid=="fixed",  ]);
+  m2 <- lm(VTRatio_elite ~ LEN + I(LEN^2), data=tmp[ tmp$vowel==vowel & tmp$hyoid=="mobile", ]);
+  r <- polyroot(coef(m1) - coef(m2)); # the roots
+  r <- Re(r[ vapply(r, function(x) all.equal(Im(x), 0), logical(1)) ]); # keep only the real roots
+  r <- r[ r >= min(tmp$LEN, na.rm=TRUE) & r <= max(tmp$LEN, na.rm=TRUE) ] # keep only those that are in the LEN interval
+  cat("For ", vowel," mobile & fixed intersection is:", round(r,2), " at ", round(predict(m1, newdata=data.frame(LEN=r)),2), "\n");
+  int.coords <- rbind(int.coords, data.frame("vowel"=vowel, "LEN"=r, "VTRatio"=predict(m1, newdata=data.frame(LEN=r)))); # slow but works
+}
+ggplot(tmp, aes(x=LEN, y=VTRatio_elite, color=hyoid)) + geom_point(alpha=0.2) + geom_smooth(method="lm", formula=y ~ x + I(x^2)) + 
+  #geom_vline(xintercept=std.VTL2.VTRatio$LEN[1], linetype="dashed", color="darkblue") + 
+  #geom_vline(aes(xintercept=LEN), data=int.coords, linetype="dotted", color="black") + 
+  #geom_hline(aes(yintercept=VTRatio), data=int.coords, linetype="dotted", color="black") + 
+  #geom_text(aes(x=LEN, y=VTRatio, label=paste0("(",round(LEN,2),",",round(VTRatio,3),")")), data=int.coords, size=3, hjust="right", nudge_x=-0.1, vjust="bottom", nudge_y=0.0025, color="black", inherit.aes=FALSE) + 
+  facet_wrap(~ vowel, nrow=1) + xlab(expression(italic("LEN"))) + ylab("VTRatio");
+```
+
+**Regression VTratio on LEN:**
+```{r echo=FALSE, message=FALSE}
+model1 <- lm(VTRatio_elite ~ LEN + I(LEN^2) + vowel + fixed.hyoid, data=results);
+summary(model1);
+
+# Paired t-tests with multiple testing correction:
+VTratio.vs.LEN <- do.call(rbind, lapply(sort(unique(results$LEN)), function(svtvbase) 
+{
+  tmp <- t.test(VTRatio_elite ~ fixed.hyoid, data=results[ results$LEN == svtvbase, ]);
+  data.frame("LEN"=svtvbase, "mean.fixed"=tmp$estimate["mean in group TRUE"], "mean.mobile"=tmp$estimate["mean in group FALSE"], 
+             "delta.fixed.mobile"=tmp$estimate["mean in group TRUE"] - tmp$estimate["mean in group FALSE"],
+             "t"=tmp$statistic, "df"=tmp$parameter, "p"=tmp$p.value);
+}));
+VTratio.vs.LEN$p.adj <- p.adjust(VTratio.vs.LEN$p, method="bonferroni");
+VTratio.vs.LEN$p <- sprintf("%.3g",VTratio.vs.LEN$p); VTratio.vs.LEN$p.adj <- sprintf("%.3g",VTratio.vs.LEN$p.adj);
+knitr::kable(VTratio.vs.LEN, caption="Independent t-tests comparinf the VTRatio between the fixed and mobile hyoid for each LEN value (with Bonferroni adjusted p-values).",
+             row.names=FALSE, col.names=c("LEN", "mean(fixed)", "mean(mobile)", "mean(fixed-mobile)", "*t*", "*df*", "*p*", "Bonferroni-adjusted *p*"));
+```
+
+For each sound, there's a *target* (acoustic and articulatory) the same across conditions and replications, and the actual best (or *elite*) realization in a given condition and replication, from which we also computed the squared error between the target the elite values for each of the *F1* -- *F5.*
+
+
+```{r echo=FALSE, message=FALSE}
+# the target vowels:
+tmp <- unique(results[,c("vowel", "F1_target", "F2_target", "F3_target", "F4_target", "F5_target", "HX_target", "HY_target", "JA_target", "LP_target", "LD_target", "TCX_target", "TCY_target", "TTX_target", "TTY_target", "TBX_target", "TBY_target", "SVTv_target", "SVTh_target", "VTRatio_target")]);
+knitr::kable(tmp, digits=2, row.names=FALSE, col.names=c("vowel", "F1", "F2", "F3", "F4", "F5", "HX", "HY", "JA", "LP", "LD", "TCX", "TCY", "TTX", "TTY", "TBX", "TBY", "SVTv", "SVTh", "VTRatio"), caption="The five predefined target vowels.");
+```
+
+
+### The standard VTL2 and observed LEN and VTLRatio values
+
+The "standard" LEN value for VTL2 is `r std.VTL2.LEN`; we used this value to predict the corresponding VTLRatio in the quadratic regression of `VTLRatio ~ LEN + I(LEN^2) + vowel` separately for fixed and mobile hyoid per vowel, and we obtained the following point estimates and 95% prediction intervals:
+```{r echo=FALSE, message=FALSE}
+knitr::kable(std.VTL2.VTRatio, row.names=FALSE, digits=3, caption="Predicted point estimates ('fit') and 95% prediction intervals ('lwr'--'upr') of VTLRatio corresponding to the standard VTL2 LEN value per vowel separately for fixed and mobile hyoid cases.");
+```
+
+
+### Plotting vowels and vowel distinctness in the formant space space
+
+
+#### Vowel plots
+
+##### Fixed hyoid
+
+```{r F1 x F2 x F3 scatterplot fixed hyoid, echo=FALSE, message=FALSE, fig.width=2*5+1, fig.height=3*5}
+d <- results[results$fixed.hyoid==TRUE,];
+d.means <- aggregate(. ~ LEN + vowel, d[,c("vowel","LEN","F1_elite","F2_elite","F3_elite","VTRatio_elite")], mean);
+
+d$R <- d$VTRatio_elite; levels(d$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]"); 
+d.means$R <- d.means$VTRatio_elite; levels(d.means$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]");
+
+# F1 x F2:
+f12.len <- ggplot(d, aes(x=F2_elite, y=F1_elite, shape=vowel)) + scale_y_reverse() + scale_x_reverse() + xlab("F2 (reversed)") + ylab("F1 (reversed)") + 
+  scale_shape_manual(values=21:25) + geom_point(aes(fill=LEN), alpha=0.75, size=2, colour="black") + 
+  scale_fill_gradient(name="LEN") +
+  geom_path(aes(x=F2_elite, y=F1_elite, color=LEN), d.means, size=1.5) + scale_color_gradient(name="LEN (means)", low="red3", high="yellow") + 
+  geom_point(aes(x=F2_target, y=F1_target), data=unique(d[,c("F1_target", "F2_target", "F3_target", "vowel")]), color="darkgreen", fill="green", shape=21, size=3) + ggtitle("");
+f12.seq <- ggplot(d, aes(x=F2_elite, y=F1_elite, fill=vowel, shape=vowel)) + scale_y_reverse() + scale_x_reverse() + xlab("F2 (reversed)") + ylab("F1 (reversed)") +  
+  geom_point(alpha=0.75, color="transparent", size=2) + scale_shape_manual(values=21:25) + scale_color_manual(values=cols4vowels2D) + 
+  geom_point(aes(x=F2_target, y=F1_target, shape=vowel), data=unique(d[,c("F1_target", "F2_target", "F3_target", "vowel", "LEN")]), color="black", size=1) + 
+  facet_wrap(~ as.factor(LEN)) + ggtitle("");
+f12.rat <- ggplot(d, aes(x=F2_elite, y=F1_elite, shape=vowel)) + scale_y_reverse() + scale_x_reverse() + xlab("F2 (reversed)") + ylab("F1 (reversed)") + 
+  scale_shape_manual(values=21:25) + geom_point(aes(fill=R), alpha=0.75, size=2, colour="black") + 
+  scale_fill_gradient(name="VTRatio") +
+  geom_path(aes(x=F2_elite, y=F1_elite, color=R), d.means, size=1.5) + scale_color_gradient(name="VTRatio (means)", low="red3", high="yellow") + 
+  geom_point(aes(x=F2_target, y=F1_target), data=unique(d[,c("F1_target", "F2_target", "F3_target", "vowel")]), color="darkgreen", fill="green", shape=21, size=3) + ggtitle("");
+
+# F2 x F3:
+f23.len <- ggplot(d, aes(x=F2_elite, y=F3_elite, shape=vowel)) + scale_y_reverse() + scale_x_reverse() + xlab("F2 (reversed)") + ylab("F3 (reversed)") +  
+  scale_shape_manual(values=21:25) + geom_point(aes(fill=LEN), alpha=0.75, size=2, colour="black") + 
+  scale_fill_gradient(name="LEN") +
+  geom_path(aes(x=F2_elite, y=F3_elite, color=LEN), d.means, size=1.5) + scale_color_gradient(name="LEN (means)", low="red3", high="yellow") + 
+  geom_point(aes(x=F2_target, y=F3_target), data=unique(d[,c("F1_target", "F2_target", "F3_target", "vowel")]), color="darkgreen", fill="green", shape=21, size=3) + ggtitle("");
+f23.seq <- ggplot(d, aes(x=F2_elite, y=F3_elite, fill=vowel, shape=vowel)) + scale_y_reverse() + scale_x_reverse() + xlab("F2 (reversed)") + ylab("F3 (reversed)") +    
+  geom_point(alpha=0.75, color="transparent", size=2) + 
+  scale_shape_manual(values=21:25) + scale_color_manual(values=cols4vowels2D) + 
+  geom_point(aes(x=F2_target, y=F3_target, shape=vowel), data=unique(d[,c("F1_target", "F2_target", "F3_target", "vowel", "LEN")]), color="black", size=1) + 
+  facet_wrap(~ as.factor(LEN)) + ggtitle("");
+f23.rat <- ggplot(d, aes(x=F2_elite, y=F3_elite, shape=vowel)) + scale_y_reverse() + scale_x_reverse() + xlab("F2 (reversed)") + ylab("F3 (reversed)") +   
+  scale_shape_manual(values=21:25) + geom_point(aes(fill=R), alpha=0.75, size=2, colour="black") + 
+  scale_fill_gradient(name="VTRatio") +
+  geom_path(aes(x=F2_elite, y=F3_elite, color=R), d.means, size=1.5) + scale_color_gradient(name="VTRatio (means)", low="red3", high="yellow") + 
+  geom_point(aes(x=F2_target, y=F3_target), data=unique(d[,c("F1_target", "F2_target", "F3_target", "vowel")]), color="darkgreen", fill="green", shape=21, size=3) + ggtitle("");
+
+multiplot(plotlist=list(f12.len, f12.seq, f12.rat, f23.len, f23.seq, f23.rat), cols=2);
+```
+
+```{r F1 x F2 x F3 3D scatterplot fixed hyoid, echo=FALSE, message=FALSE, fig.width=7, fig.height=6}
+# Interactive 3D scatterplot:
+LEN.min <- min(d$LEN, na.rm=TRUE); LEN.max <- max(d$LEN, na.rm=TRUE);
+VTratio.min <- min(d$VTRatio_elite, na.rm=TRUE); VTratio.max <- max(d$VTRatio_elite, na.rm=TRUE);
+mfrow3d(nr = 1, nc = 2, sharedMouse = TRUE); 
+plot3d(-d$F2_elite, d$F3_elite, -d$F1_elite, type="s", 
+       main="", xlab="-F2", ylab="F3", zlab="-F1",
+       sub="'schwa'=black 'a'=blue 'ae'=yellow 'i'=green 'u'=red; small & desaturated = high hyoid",
+       col=sapply(1:nrow(d), function(i) rgb(colorRamp(cols4vowels[d$vowel[i],])(1.0-(d$LEN[i] - LEN.min)/(LEN.max - LEN.min))/255, alpha=0.5)),
+       size=0.5*(2.0-normalize(d$LEN)));
+plot3d(-d$F2_elite, d$F3_elite, -d$F1_elite, type="s", 
+       main="", xlab="-F2", ylab="F3", zlab="-F1",
+       sub="small & desaturated = high VTratio",
+       col=sapply(1:nrow(d), function(i) rgb(colorRamp(cols4vowels[d$vowel[i],])(1.0-(d$VTRatio_elite[i] - VTratio.min)/(VTratio.max - VTratio.min))/255, alpha=0.5)),
+       size=0.5*(2.0-normalize(d$VTRatio_elite)));
+rglwidget();
+mfrow3d(nr = 1, nc = 1); 
+```
+
+##### Mobile hyoid
+
+```{r F1 x F2 scatterplot mobile hyoid, echo=FALSE, message=FALSE, fig.width=2*5+1, fig.height=3*5}
+d <- results[results$fixed.hyoid==FALSE,];
+d.means <- aggregate(. ~ LEN + vowel, d[,c("vowel","LEN","F1_elite","F2_elite","F3_elite","VTRatio_elite")], mean);
+
+d$R <- d$VTRatio_elite; levels(d$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]"); 
+d.means$R <- d.means$VTRatio_elite; levels(d.means$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]");
+
+# F1 x F2:
+f12.len <- ggplot(d, aes(x=F2_elite, y=F1_elite, shape=vowel)) + scale_y_reverse() + scale_x_reverse() + xlab("F2 (reversed)") + ylab("F1 (reversed)") + 
+  scale_shape_manual(values=21:25) + geom_point(aes(fill=LEN), alpha=0.75, size=2, colour="black") + 
+  scale_fill_gradient(name="LEN") +
+  geom_path(aes(x=F2_elite, y=F1_elite, color=LEN), d.means, size=1.5) + scale_color_gradient(name="LEN (means)", low="red3", high="yellow") + 
+  geom_point(aes(x=F2_target, y=F1_target), data=unique(d[,c("F1_target", "F2_target", "F3_target", "vowel")]), color="darkgreen", fill="green", shape=21, size=3) + ggtitle("");
+f12.seq <- ggplot(d, aes(x=F2_elite, y=F1_elite, fill=vowel, shape=vowel)) + scale_y_reverse() + scale_x_reverse() + xlab("F2 (reversed)") + ylab("F1 (reversed)") +  
+  geom_point(alpha=0.75, color="transparent", size=2) + scale_shape_manual(values=21:25) + scale_color_manual(values=cols4vowels2D) + 
+  geom_point(aes(x=F2_target, y=F1_target, shape=vowel), data=unique(d[,c("F1_target", "F2_target", "F3_target", "vowel", "LEN")]), color="black", size=1) + 
+  facet_wrap(~ as.factor(LEN)) + ggtitle("");
+f12.rat <- ggplot(d, aes(x=F2_elite, y=F1_elite, shape=vowel)) + scale_y_reverse() + scale_x_reverse() + xlab("F2 (reversed)") + ylab("F1 (reversed)") + 
+  scale_shape_manual(values=21:25) + geom_point(aes(fill=R), alpha=0.75, size=2, colour="black") + 
+  scale_fill_gradient(name="VTRatio") +
+  geom_path(aes(x=F2_elite, y=F1_elite, color=R), d.means, size=1.5) + scale_color_gradient(name="VTRatio (means)", low="red3", high="yellow") + 
+  geom_point(aes(x=F2_target, y=F1_target), data=unique(d[,c("F1_target", "F2_target", "F3_target", "vowel")]), color="darkgreen", fill="green", shape=21, size=3) + ggtitle("");
+
+# F2 x F3:
+f23.len <- ggplot(d, aes(x=F2_elite, y=F3_elite, shape=vowel)) + scale_y_reverse() + scale_x_reverse() + xlab("F2 (reversed)") + ylab("F3 (reversed)") +  
+  scale_shape_manual(values=21:25) + geom_point(aes(fill=LEN), alpha=0.75, size=2, colour="black") + 
+  scale_fill_gradient(name="LEN") +
+  geom_path(aes(x=F2_elite, y=F3_elite, color=LEN), d.means, size=1.5) + scale_color_gradient(name="LEN (means)", low="red3", high="yellow") + 
+  geom_point(aes(x=F2_target, y=F3_target), data=unique(d[,c("F1_target", "F2_target", "F3_target", "vowel")]), color="darkgreen", fill="green", shape=21, size=3) + ggtitle("");
+f23.seq <- ggplot(d, aes(x=F2_elite, y=F3_elite, fill=vowel, shape=vowel)) + scale_y_reverse() + scale_x_reverse() + xlab("F2 (reversed)") + ylab("F3 (reversed)") +    
+  geom_point(alpha=0.75, color="transparent", size=2) + 
+  scale_shape_manual(values=21:25) + scale_color_manual(values=cols4vowels2D) + 
+  geom_point(aes(x=F2_target, y=F3_target, shape=vowel), data=unique(d[,c("F1_target", "F2_target", "F3_target", "vowel", "LEN")]), color="black", size=1) + 
+  facet_wrap(~ as.factor(LEN)) + ggtitle("");
+f23.rat <- ggplot(d, aes(x=F2_elite, y=F3_elite, shape=vowel)) + scale_y_reverse() + scale_x_reverse() + xlab("F2 (reversed)") + ylab("F3 (reversed)") +   
+  scale_shape_manual(values=21:25) + geom_point(aes(fill=R), alpha=0.75, size=2, colour="black") + 
+  scale_fill_gradient(name="VTRatio") +
+  geom_path(aes(x=F2_elite, y=F3_elite, color=R), d.means, size=1.5) + scale_color_gradient(name="VTRatio (means)", low="red3", high="yellow") + 
+  geom_point(aes(x=F2_target, y=F3_target), data=unique(d[,c("F1_target", "F2_target", "F3_target", "vowel")]), color="darkgreen", fill="green", shape=21, size=3) + ggtitle("");
+
+multiplot(plotlist=list(f12.len, f12.seq, f12.rat, f23.len, f23.seq, f23.rat), cols=2);
+```
+
+```{r F1 x F2 x F3 3D scatterplot mobile hyoid, echo=FALSE, message=FALSE, fig.width=7, fig.height=6}
+# Interactive 3D scatterplot:
+LEN.min <- min(d$LEN, na.rm=TRUE); LEN.max <- max(d$LEN, na.rm=TRUE);
+VTratio.min <- min(d$VTRatio_elite, na.rm=TRUE); VTratio.max <- max(d$VTRatio_elite, na.rm=TRUE);
+mfrow3d(nr = 1, nc = 2, sharedMouse = TRUE); 
+plot3d(-d$F2_elite, d$F3_elite, -d$F1_elite, type="s", 
+       main="", xlab="-F2", ylab="F3", zlab="-F1",
+       sub="'schwa'=black 'a'=blue 'ae'=yellow 'i'=green 'u'=red; small & desaturated = high hyoid",
+       col=sapply(1:nrow(d), function(i) rgb(colorRamp(cols4vowels[d$vowel[i],])(1.0-(d$LEN[i] - LEN.min)/(LEN.max - LEN.min))/255, alpha=0.5)),
+       size=0.5*(2.0-normalize(d$LEN)));
+plot3d(-d$F2_elite, d$F3_elite, -d$F1_elite, type="s", 
+       main="", xlab="-F2", ylab="F3", zlab="-F1",
+       sub="small & desaturated = high VTratio",
+       col=sapply(1:nrow(d), function(i) rgb(colorRamp(cols4vowels[d$vowel[i],])(1.0-(d$VTRatio_elite[i] - VTratio.min)/(VTratio.max - VTratio.min))/255, alpha=0.5)),
+       size=0.5*(2.0-normalize(d$VTRatio_elite)));
+rglwidget();
+mfrow3d(nr = 1, nc = 1); 
+```
+
+
+
+##### Stats
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+d <- results;
+d.means <- aggregate(. ~ fixed.hyoid + LEN + vowel, d[,c("fixed.hyoid","vowel","LEN","F1_elite","F2_elite","F3_elite","VTRatio_elite")], mean);
+```
+
+**F1**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#f1.lm <- lm(F1_elite ~ fixed.hyoid + LEN + I(LEN^2) + vowel + (fixed.hyoid : vowel) + (LEN : vowel) + (I(LEN^2) : vowel) + replication, data=d); 
+f1.lm <- lm(F1_elite ~ fixed.hyoid + VTRatio_elite + I(VTRatio_elite^2) + vowel + (fixed.hyoid : vowel) + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel) + replication, data=d); 
+summary(aov(f1.lm)); TukeyHSD(aov(f1.lm), which=c("vowel")); summary(f1.lm); 
+```
+
+**F2**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#f2.lm <- lm(F2_elite ~ fixed.hyoid + LEN + I(LEN^2) + vowel + (fixed.hyoid : vowel) + (LEN : vowel) + (I(LEN^2) : vowel) + replication, data=d); 
+f2.lm <- lm(F2_elite ~ fixed.hyoid + VTRatio_elite + I(VTRatio_elite^2) + vowel + (fixed.hyoid : vowel) + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel) + replication, data=d); 
+summary(aov(f2.lm)); TukeyHSD(aov(f2.lm), which=c("vowel")); summary(f2.lm); 
+```
+
+**F3**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#f3.lm <- lm(F3_elite ~ fixed.hyoid + LEN + I(LEN^2) + vowel + (fixed.hyoid : vowel) + (LEN : vowel) + (I(LEN^2) : vowel) + replication, data=d); 
+f3.lm <- lm(F3_elite ~ fixed.hyoid + VTRatio_elite + I(VTRatio_elite^2) + vowel + (fixed.hyoid : vowel) + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel) + replication, data=d); 
+summary(aov(f3.lm)); TukeyHSD(aov(f3.lm), which=c("vowel")); summary(f3.lm); 
+```
+
+**F4**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#f4.lm <- lm(F4_elite ~ fixed.hyoid + LEN + I(LEN^2) + vowel + (fixed.hyoid : vowel) + (LEN : vowel) + (I(LEN^2) : vowel) + replication, data=d); 
+f4.lm <- lm(F4_elite ~ fixed.hyoid + VTRatio_elite + I(VTRatio_elite^2) + vowel + (fixed.hyoid : vowel) + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel) + replication, data=d); 
+summary(aov(f4.lm)); TukeyHSD(aov(f4.lm), which=c("vowel")); summary(f4.lm); 
+```
+
+**F5**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#f5.lm <- lm(F5_elite ~ fixed.hyoid + LEN + I(LEN^2) + vowel + (fixed.hyoid : vowel) + (LEN : vowel) + (I(LEN^2) : vowel) + replication, data=d);  
+f5.lm <- lm(F5_elite ~ fixed.hyoid + VTRatio_elite + I(VTRatio_elite^2) + vowel + (fixed.hyoid : vowel) + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel) + replication, data=d);  
+summary(aov(f5.lm)); TukeyHSD(aov(f5.lm), which=c("vowel")); summary(f5.lm); 
+```
+
+**Summarized**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tmp <- t(do.call(rbind, lapply(list("F1"=f1.lm, "F2"=f2.lm, "F3"=f3.lm, "F4"=f4.lm, "F5"=f5.lm), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of F1--F5 regressions with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=8, fig.height=6, fig.cap="Predicted formants for each LEN per vowel pair. (95% prediction intervals are too narrow to show.)"}
+# For plotting, get rid of replication (ns anyway):
+f1.lm <- lm(F1_elite ~ fixed.hyoid + VTRatio_elite + I(VTRatio_elite^2) + vowel + (fixed.hyoid : vowel) + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel), data=d); 
+f2.lm <- lm(F2_elite ~ fixed.hyoid + VTRatio_elite + I(VTRatio_elite^2) + vowel + (fixed.hyoid : vowel) + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel), data=d); 
+f3.lm <- lm(F3_elite ~ fixed.hyoid + VTRatio_elite + I(VTRatio_elite^2) + vowel + (fixed.hyoid : vowel) + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel), data=d); 
+f4.lm <- lm(F4_elite ~ fixed.hyoid + VTRatio_elite + I(VTRatio_elite^2) + vowel + (fixed.hyoid : vowel) + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel), data=d); 
+f5.lm <- lm(F5_elite ~ fixed.hyoid + VTRatio_elite + I(VTRatio_elite^2) + vowel + (fixed.hyoid : vowel) + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel), data=d);  
+f1.pred <- predict(f1.lm, f15.data <- expand.grid("fixed.hyoid"=c(TRUE,FALSE), 
+                                                  #"LEN"=seq(-11,-5,length.out=100), 
+                                                  VTRatio_elite=seq(0.35,0.55,length.out=100),
+                                                  "vowel"=unique(d$vowel)), se.fit=TRUE, interval="confidence");
+f2.pred <- predict(f2.lm, f15.data, se.fit=TRUE, interval="confidence");
+f3.pred <- predict(f3.lm, f15.data, se.fit=TRUE, interval="confidence");
+f4.pred <- predict(f4.lm, f15.data, se.fit=TRUE, interval="confidence");
+f5.pred <- predict(f5.lm, f15.data, se.fit=TRUE, interval="confidence");
+f15.data <- rbind(cbind(f15.data, "formant"="F1", "values"=f1.pred$fit[,"fit"], "CI95.lwr"=f1.pred$fit[,"lwr"], "CI95.upr"=f1.pred$fit[,"upr"]),
+                  cbind(f15.data, "formant"="F2", "values"=f2.pred$fit[,"fit"], "CI95.lwr"=f2.pred$fit[,"lwr"], "CI95.upr"=f2.pred$fit[,"upr"]),
+                  cbind(f15.data, "formant"="F3", "values"=f3.pred$fit[,"fit"], "CI95.lwr"=f3.pred$fit[,"lwr"], "CI95.upr"=f3.pred$fit[,"upr"]),
+                  cbind(f15.data, "formant"="F4", "values"=f4.pred$fit[,"fit"], "CI95.lwr"=f4.pred$fit[,"lwr"], "CI95.upr"=f4.pred$fit[,"upr"]),
+                  cbind(f15.data, "formant"="F5", "values"=f5.pred$fit[,"fit"], "CI95.lwr"=f5.pred$fit[,"lwr"], "CI95.upr"=f5.pred$fit[,"upr"]));
+f15.data$vowel <- factor(f15.data$vowel, levels=c("schwa", "a", "ae", "i", "u" ));
+f15.data$hyoid <- ifelse(f15.data$fixed.hyoid, "fixed", "mobile");
+levels(f15.data$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]");
+ggplot(f15.data, aes(x=VTRatio_elite, y=values, color=vowel, linetype=hyoid)) + xlab("VTRatio") + ylab("Formant value (Bark)") +  
+  geom_line() + 
+  #geom_ribbon(aes(ymin=CI95.lwr, ymax=CI95.upr, color=vowel, fill=vowel), alpha=0.3) +
+  geom_point(aes(x=VTRatio_elite, y=values, color=vowel, fill=vowel, shape=vowel), 
+             #data=f15.data[ f15.data$fixed.hyoid==FALSE & f15.data$VTRatio_elite %in% seq(0.35,0.55,length.out=100)[c(1,50,100)], ], 
+             data=f15.data[ f15.data$fixed.hyoid==FALSE & f15.data$VTRatio_elite %in% c(0.35,0.55), ], 
+             size=3, alpha=0.75) + 
+  scale_shape_manual(values=21:25) + scale_color_manual(values=cols4vowels2D) + scale_fill_manual(values=cols4vowels2D) +
+  #geom_vline(xintercept=std.VTL2.VTRatio$fit[1], linetype="dashed", color="darkblue") + 
+  facet_grid( ~ formant);
+```
+
+
+
+***For mobile hyoid only***
+
+**F1**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+f1.lm <- lm(F1_elite ~ VTRatio_elite + I(VTRatio_elite^2) + vowel + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel) + replication, data=d[!d$fixed.hyoid,]); 
+summary(aov(f1.lm)); TukeyHSD(aov(f1.lm), which=c("vowel")); summary(f1.lm); 
+```
+
+**F2**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+f2.lm <- lm(F2_elite ~ VTRatio_elite + I(VTRatio_elite^2) + vowel + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel) + replication, data=d[!d$fixed.hyoid,]);  
+summary(aov(f2.lm)); TukeyHSD(aov(f2.lm), which=c("vowel")); summary(f2.lm); 
+```
+
+**F3**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+f3.lm <- lm(F3_elite ~ VTRatio_elite + I(VTRatio_elite^2) + vowel + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel) + replication, data=d[!d$fixed.hyoid,]); 
+summary(aov(f3.lm)); TukeyHSD(aov(f3.lm), which=c("vowel")); summary(f3.lm); 
+```
+
+**F4**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+f4.lm <- lm(F4_elite ~ VTRatio_elite + I(VTRatio_elite^2) + vowel + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel) + replication, data=d[!d$fixed.hyoid,]); 
+summary(aov(f4.lm)); TukeyHSD(aov(f4.lm), which=c("vowel")); summary(f4.lm); 
+```
+
+**F5**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+f5.lm <- lm(F5_elite ~ VTRatio_elite + I(VTRatio_elite^2) + vowel + (VTRatio_elite : vowel) + (I(VTRatio_elite^2) : vowel) + replication, data=d[!d$fixed.hyoid,]);   
+summary(aov(f5.lm)); TukeyHSD(aov(f5.lm), which=c("vowel")); summary(f5.lm); 
+```
+
+**Summarized**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tmp <- t(do.call(rbind, lapply(list("F1"=f1.lm, "F2"=f2.lm, "F3"=f3.lm, "F4"=f4.lm, "F5"=f5.lm), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of F1--F5 regressions with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+
+#### Difficulty in learning vowels
+
+A proxy for "learning difficulty" is represented (in principle) by the time-to-plateau (i.e., *generation*, with lower meaning "easier to learn"):
+
+```{r echo=FALSE, message=FALSE, fig.width=8, fig.height=6}
+d <- results[ results$fixed.hyoid == FALSE, ];
+levels(d$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]");
+ggplot(d, aes(x=LEN, y=generation, color=vowel)) + xlab(expression(italic("LEN"))) + ylab("Generations to fitness plateau") +  
+  geom_point() + geom_smooth() + 
+  scale_color_manual(values=cols4vowels2D) + 
+  geom_vline(xintercept=std.VTL2.VTRatio$LEN[1], color="darkblue", linetype="dashed") + 
+  facet_grid(. ~ vowel);
+
+time.to.plateau <- lm(generation ~ vowel + LEN + I(LEN^2) + (vowel : LEN) + (vowel : I(LEN^2)) + replication, data=d); summary.aov(time.to.plateau); TukeyHSD(aov(time.to.plateau), which=c("vowel")); summary(time.to.plateau);
+tmp <- t(do.call(rbind, lapply(list("Gens.to.plateau"=time.to.plateau), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of generations to plateau regressions with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+
+tmp <- ddply(d, "vowel", function(x) mean(x$generation));
+```
+
+
+#### Formants predicted by condition, vowel and generation
+
+
+##### Mobile hyoid 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+d <- results[results$fixed.hyoid == FALSE,];
+```
+
+**F1 and error**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+f1.lm <- lm(F1_elite ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + replication + 
+              generation, # + I(generation^2), 
+            data=d); 
+summary(aov(f1.lm)); TukeyHSD(aov(f1.lm), which=c("vowel")); summary(f1.lm); 
+
+f1e.lm <- lm(F1.error ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + replication + 
+              generation, # + I(generation^2), 
+            data=d); 
+summary(aov(f1e.lm)); TukeyHSD(aov(f1e.lm), which=c("vowel")); summary(f1e.lm); 
+```
+
+**F2**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+f2.lm <- lm(F2_elite ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + replication + 
+              generation, # + I(generation^2), 
+            data=d); 
+summary(aov(f2.lm)); TukeyHSD(aov(f2.lm), which=c("vowel")); summary(f2.lm); 
+
+f2e.lm <- lm(F2.error ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + replication + 
+              generation, # + I(generation^2), 
+            data=d); 
+summary(aov(f2e.lm)); TukeyHSD(aov(f2e.lm), which=c("vowel")); summary(f2e.lm); 
+```
+
+**F3**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+f3.lm <- lm(F3_elite ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + replication + 
+              generation, # + I(generation^2), 
+            data=d); 
+summary(aov(f3.lm)); TukeyHSD(aov(f3.lm), which=c("vowel")); summary(f3.lm); 
+
+f3e.lm <- lm(F3.error ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + replication + 
+              generation, # + I(generation^2), 
+            data=d); 
+summary(aov(f3e.lm)); TukeyHSD(aov(f3e.lm), which=c("vowel")); summary(f3e.lm); 
+```
+
+**F4**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+f4.lm <- lm(F4_elite ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + replication + 
+              generation, # + I(generation^2), 
+            data=d); 
+summary(aov(f4.lm)); TukeyHSD(aov(f4.lm), which=c("vowel")); summary(f4.lm); 
+
+f4e.lm <- lm(F4.error ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + replication + 
+              generation, # + I(generation^2), 
+            data=d); 
+summary(aov(f4e.lm)); TukeyHSD(aov(f4e.lm), which=c("vowel")); summary(f4e.lm); 
+```
+
+**F5**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+f5.lm <- lm(F5_elite ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + replication + 
+              generation, # + I(generation^2), 
+            data=d); 
+summary(aov(f5.lm)); TukeyHSD(aov(f5.lm), which=c("vowel")); summary(f5.lm); 
+
+f5e.lm <- lm(F5.error ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + replication + 
+              generation, # + I(generation^2), 
+            data=d); 
+summary(aov(f5e.lm)); TukeyHSD(aov(f5e.lm), which=c("vowel")); summary(f5e.lm); 
+```
+
+**Summarized**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tmp <- t(do.call(rbind, lapply(list("F1"=f1.lm, "F1 error"=f1e.lm, "F2"=f2.lm, "F2 error"=f2e.lm, "F3"=f3.lm, "F3 error"=f3e.lm, "F4"=f4.lm, "F4 error"=f4e.lm, "F5"=f5.lm, "F5 error"=f5e.lm), 
+                               function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of F1--F5 regressions with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+
+#knitr::kable(tmp[,c("DVs, interactions & R^2^","F1 error","F2 error","F3 error","F4 error","F5 error")], row.names=FALSE, align="r", format="latex");
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.cap="Formants for each vowel per condition for mobile hyoid."}
+# Prepare the data by formant in the long format (formant value and error):
+tmp1 <- melt(d[,c("condition", "LEN", "vowel", "replication", "generation", "VTRatio_elite", "F1.error","F2.error","F3.error","F4.error","F5.error")], 
+             measure.vars=c("F1.error","F2.error","F3.error","F4.error","F5.error"), variable.name="formant", value.name="formant.error");
+tmp1$formant <- substring(as.character(tmp1$formant),1,2);
+tmp2 <- melt(d[,c("condition", "LEN", "vowel", "replication", "generation", "VTRatio_elite", "F1_target","F2_target","F3_target","F4_target","F5_target")], 
+             measure.vars=c("F1_target","F2_target","F3_target","F4_target","F5_target"), variable.name="formant", value.name="formant.target");
+tmp2$formant <- substring(as.character(tmp2$formant),1,2);
+tmp3 <- melt(d[,c("condition", "LEN", "vowel", "replication", "generation", "VTRatio_elite", "F1_elite","F2_elite","F3_elite","F4_elite","F5_elite")], 
+             measure.vars=c("F1_elite","F2_elite","F3_elite","F4_elite","F5_elite"), variable.name="formant", value.name="formant.value")
+tmp3$formant <- substring(as.character(tmp3$formant),1,2);
+tmp <- merge(merge(tmp1, tmp2, by=c("condition", "LEN", "vowel", "replication", "generation", "VTRatio_elite", "formant")),
+             tmp3, by=c("condition", "LEN", "vowel", "replication", "generation", "VTRatio_elite", "formant"));
+levels(tmp$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]");
+
+# ggplot(tmp, aes(x=VTRatio_elite, y=formant.value, color=LEN)) + xlab("VTRatio") + ylab("Formant value") +
+#   geom_point(alpha=0.25) + 
+#   geom_smooth(method="loess", color="yellow1") + 
+#   geom_hline(aes(yintercept=formant.target), data=tmp, color="red", linetype="dashed") + 
+#   geom_vline(xintercept=std.VTL2.VTRatio$fit[1], color="darkblue", linetype="dashed") + 
+#   facet_grid(formant ~ vowel, scales="free_y") + 
+#   theme(axis.text.x=element_text(angle=90,hjust=1));
+ggplot(tmp, aes(x=VTRatio_elite, y=formant.value, fill=formant, color=formant)) + xlab("VTRatio") + ylab("Formant value (Bark)") +
+  geom_point(shape=21) + 
+  geom_smooth(method="loess", color="black", size=1.0) + 
+  geom_hline(aes(yintercept=formant.target), data=tmp, color="darkblue", linetype="dashed") + 
+  #geom_vline(xintercept=std.VTL2.VTRatio$fit[1], color="darkblue", linetype="dashed") + 
+  geom_text(aes(x=min(tmp$VTRatio_elite,na.rm=TRUE), y=formant.target, label=formant, color=formant), data=unique(tmp[,c("LEN", "vowel", "formant", "formant.target")]), inherit.aes=FALSE, hjust="left", vjust="bottom", nudge_x=-0.02, nudge_y=0.075) + 
+  facet_grid(. ~ vowel, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.cap="Predicted formants for each vowel per condition for mobile hyoid. (95% prediction intervals are too narrow to show.)"}
+# For plotting, get rid of replication (ns anyway):
+f1.lm <- lm(F1_elite ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + 
+              generation, # + I(generation^2), 
+            data=d); 
+f2.lm <- lm(F2_elite ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + 
+              generation, # + I(generation^2), 
+            data=d); 
+f3.lm <- lm(F3_elite ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + 
+              generation, # + I(generation^2), 
+            data=d); 
+f4.lm <- lm(F4_elite ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + 
+              generation, # + I(generation^2), 
+            data=d); 
+f5.lm <- lm(F5_elite ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + 
+              generation, # + I(generation^2), 
+            data=d); 
+f1.pred <- predict(f1.lm, f15.data <- expand.grid("LEN"=sort(unique(d$LEN)), 
+                                                  "vowel"=levels(d$vowel),
+                                                  "generation"=min(d$generation):max(d$generation)), se.fit=TRUE, interval="confidence");
+f2.pred <- predict(f2.lm, f15.data, se.fit=TRUE, interval="confidence");
+f3.pred <- predict(f3.lm, f15.data, se.fit=TRUE, interval="confidence");
+f4.pred <- predict(f4.lm, f15.data, se.fit=TRUE, interval="confidence");
+f5.pred <- predict(f5.lm, f15.data, se.fit=TRUE, interval="confidence");
+f15.data <- rbind(cbind(f15.data, "formant"="F1", "values"=f1.pred$fit[,"fit"], "CI95.lwr"=f1.pred$fit[,"lwr"], "CI95.upr"=f1.pred$fit[,"upr"]),
+                  cbind(f15.data, "formant"="F2", "values"=f2.pred$fit[,"fit"], "CI95.lwr"=f2.pred$fit[,"lwr"], "CI95.upr"=f2.pred$fit[,"upr"]),
+                  cbind(f15.data, "formant"="F3", "values"=f3.pred$fit[,"fit"], "CI95.lwr"=f3.pred$fit[,"lwr"], "CI95.upr"=f3.pred$fit[,"upr"]),
+                  cbind(f15.data, "formant"="F4", "values"=f4.pred$fit[,"fit"], "CI95.lwr"=f4.pred$fit[,"lwr"], "CI95.upr"=f4.pred$fit[,"upr"]),
+                  cbind(f15.data, "formant"="F5", "values"=f5.pred$fit[,"fit"], "CI95.lwr"=f5.pred$fit[,"lwr"], "CI95.upr"=f5.pred$fit[,"upr"]));
+f15.data <- cbind(f15.data, "target"=unlist(mclapply(1:nrow(f15.data), function(i)
+  {
+  s <- which(results$LEN == f15.data$LEN[i] & results$vowel == f15.data$vowel[i]);
+   results[ s[1], paste0(f15.data$formant[i],"_target") ];
+  }, mc.cores=4)));
+f15.data$vowel     <- factor(f15.data$vowel,     levels=levels(d$vowel));
+levels(f15.data$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]");
+
+ggplot(f15.data, aes(x=generation, y=values, color=vowel)) + 
+  geom_line() + 
+  geom_ribbon(aes(ymin=CI95.lwr, ymax=CI95.upr, color=vowel, fill=vowel), alpha=0.3) +
+  #geom_point(aes(x=generation, y=values, color=vowel, fill=vowel, shape=vowel), 
+  #           data=pcart.data[ pcart.data$generation %in% c(min(results.PCs.art$generation),max(results.PCs.art$generation)), ], 
+  #           size=3, alpha=0.75) + 
+  geom_hline(aes(yintercept=target, color=vowel), linetype="dashed", size=1.2) +
+  scale_shape_manual(values=21:25) + scale_color_manual(values=cols4vowels2D) + scale_fill_manual(values=cols4vowels2D) +
+  facet_grid(formant ~ LEN, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.cap="Predicted formants for each vowel per condition for mobile hyoid. (95% prediction intervals are too narrow to show.)"}
+ggplot(f15.data, aes(x=generation, y=values, color=formant)) + 
+  geom_line() + 
+  geom_ribbon(aes(ymin=CI95.lwr, ymax=CI95.upr, color=formant, fill=formant), alpha=0.3) +
+  geom_hline(aes(yintercept=target, color=formant), linetype="dashed", size=1.2) +
+  scale_shape_manual(values=21:25) + 
+  facet_grid(vowel ~ LEN, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.cap="Scaled predicted formants for each vowel per condition for mobile hyoid. (95% prediction intervals are not shown)."}
+f15.data.ranges <- as.data.frame(f15.data %>% group_by(LEN,vowel,formant) %>% summarize(min(CI95.lwr),max(CI95.upr)));
+f15.data.scaled <- merge(f15.data, f15.data.ranges, all=TRUE);
+f15.data.scaled$values   <- (f15.data.scaled$values   - f15.data.scaled$`min(CI95.lwr)`) / (f15.data.scaled$`max(CI95.upr)` - f15.data.scaled$`min(CI95.lwr)`);
+f15.data.scaled$CI95.lwr <- (f15.data.scaled$CI95.lwr - f15.data.scaled$`min(CI95.lwr)`) / (f15.data.scaled$`max(CI95.upr)` - f15.data.scaled$`min(CI95.lwr)`);
+f15.data.scaled$CI95.upr <- (f15.data.scaled$CI95.upr - f15.data.scaled$`min(CI95.lwr)`) / (f15.data.scaled$`max(CI95.upr)` - f15.data.scaled$`min(CI95.lwr)`);
+f15.data.scaled$target   <- (f15.data.scaled$target   - f15.data.scaled$`min(CI95.lwr)`) / (f15.data.scaled$`max(CI95.upr)` - f15.data.scaled$`min(CI95.lwr)`);
+ggplot(f15.data.scaled, aes(x=generation, y=values, color=formant)) + 
+  geom_line(size=1.2) + 
+  #geom_ribbon(aes(ymin=CI95.lwr, ymax=CI95.upr, color=formant, fill=formant), alpha=0.3) +
+  geom_hline(aes(yintercept=target, color=formant), linetype="dashed", size=1.2) +
+  scale_shape_manual(values=21:25) + 
+  facet_grid(vowel ~ LEN, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.cap="Predicted acoustic errors for each vowel per condition for mobile hyoid. (95% prediction intervals are too narrow to show.)"}
+# For plotting, get rid of replication (ns anyway):
+f1e.lm <- lm(F1.error ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + 
+              generation, # + I(generation^2), 
+            data=d); 
+f2e.lm <- lm(F2.error ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + 
+              generation, # + I(generation^2), 
+            data=d); 
+f3e.lm <- lm(F3.error ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + 
+              generation, # + I(generation^2), 
+            data=d); 
+f4e.lm <- lm(F4.error ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + 
+              generation, # + I(generation^2), 
+            data=d); 
+f5e.lm <- lm(F5.error ~ LEN + I(LEN^2) + vowel + (LEN : vowel) + (I(LEN^2) : vowel) + 
+              generation, # + I(generation^2), 
+            data=d); 
+f1.pred <- predict(f1e.lm, f15.data <- expand.grid("LEN"=sort(unique(d$LEN)), 
+                                                   "vowel"=levels(d$vowel),
+                                                   "generation"=min(d$generation):max(d$generation)), se.fit=TRUE, interval="confidence");
+f2.pred <- predict(f2e.lm, f15.data, se.fit=TRUE, interval="confidence");
+f3.pred <- predict(f3e.lm, f15.data, se.fit=TRUE, interval="confidence");
+f4.pred <- predict(f4e.lm, f15.data, se.fit=TRUE, interval="confidence");
+f5.pred <- predict(f5e.lm, f15.data, se.fit=TRUE, interval="confidence");
+f15.data <- rbind(cbind(f15.data, "formant"="F1", "values"=f1.pred$fit[,"fit"], "CI95.lwr"=f1.pred$fit[,"lwr"], "CI95.upr"=f1.pred$fit[,"upr"]),
+                  cbind(f15.data, "formant"="F2", "values"=f2.pred$fit[,"fit"], "CI95.lwr"=f2.pred$fit[,"lwr"], "CI95.upr"=f2.pred$fit[,"upr"]),
+                  cbind(f15.data, "formant"="F3", "values"=f3.pred$fit[,"fit"], "CI95.lwr"=f3.pred$fit[,"lwr"], "CI95.upr"=f3.pred$fit[,"upr"]),
+                  cbind(f15.data, "formant"="F4", "values"=f4.pred$fit[,"fit"], "CI95.lwr"=f4.pred$fit[,"lwr"], "CI95.upr"=f4.pred$fit[,"upr"]),
+                  cbind(f15.data, "formant"="F5", "values"=f5.pred$fit[,"fit"], "CI95.lwr"=f5.pred$fit[,"lwr"], "CI95.upr"=f5.pred$fit[,"upr"]));
+f15.data <- cbind(f15.data, "target"=unlist(mclapply(1:nrow(f15.data), function(i)
+  {
+  s <- which(results$LEN == f15.data$LEN[i] & results$vowel == f15.data$vowel[i]);
+   results[ s[1], paste0(f15.data$formant[i],"_target") ];
+  }, mc.cores=4)));
+f15.data$vowel     <- factor(f15.data$vowel,     levels=levels(d$vowel));
+levels(f15.data$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]");
+
+ggplot(f15.data, aes(x=generation, y=values, color=vowel)) + 
+  geom_line() + 
+  geom_ribbon(aes(ymin=CI95.lwr, ymax=CI95.upr, color=vowel, fill=vowel), alpha=0.3) +
+  scale_shape_manual(values=21:25) + scale_color_manual(values=cols4vowels2D) + scale_fill_manual(values=cols4vowels2D) +
+  facet_grid(formant ~ LEN, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.cap="Predicted acoustic errors for each vowel per condition for mobile hyoid. (95% prediction intervals are too narrow to show.)"}
+ggplot(f15.data, aes(x=generation, y=values, color=formant)) + 
+  geom_line() + 
+  geom_ribbon(aes(ymin=CI95.lwr, ymax=CI95.upr, color=formant, fill=formant), alpha=0.3) +
+  scale_shape_manual(values=21:25) + 
+  facet_grid(vowel ~ LEN, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+
+
+
+#### Inter-vowel distances
+
+```{r inter-vowel distances, echo=FALSE, message=FALSE, fig.width=8, fig.height=5}
+tmp <- intervowel.dists[ intervowel.dists$fixed.hyoid == FALSE, ];
+tmp$vowel1 <- factor(tmp$vowel1, levels=c("a", "ae", "i", "schwa")); levels(tmp$vowel1) <- c("[ɑ]", "[æ]", "[i]", "[ə]");
+tmp$vowel2 <- factor(tmp$vowel2, levels=c("ae", "i", "schwa", "u")); levels(tmp$vowel2) <- c("[æ]", "[i]", "[ə]", "[u]");
+levels(tmp$vowel.pair) <- c("[ɑ]-[æ]", "[ɑ]-[i]", "[ɑ]-[ə]", "[ɑ]-[u]", "[æ]-[i]", "[æ]-[ə]", "[æ]-[u]", "[i]-[ə]", "[i]-[u]", "[ə]-[u]"); 
+ggplot(tmp, aes(x=VTRatio_elite, y=dist_elite_F1F5, color=LEN)) + geom_point(alpha=0.50, size=0.75) + 
+  xlab("VTRatio") + ylab("Euclidean distance (F1-F5)") + ylim(0,NA) + 
+  scale_color_gradient(name=expression(italic("LEN"))) + 
+  geom_smooth(method="loess", color="yellow1") + 
+  #geom_vline(xintercept=std.VTL2.VTRatio$fit[1], linetype="dashed", color="darkblue") + 
+  #facet_grid(vowel2 ~ vowel1);
+  facet_grid(. ~ vowel.pair) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1));
+```
+
+
+**F1--F5**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ive15.lm <- lm(dist_elite_F1F5 ~ VTRatio_elite + I(VTRatio_elite^2) + vowel.pair + (VTRatio_elite : vowel.pair) + (I(VTRatio_elite^2) : vowel.pair) + replication,  data=intervowel.dists[ intervowel.dists$fixed.hyoid == FALSE,]); 
+summary(aov(ive15.lm)); TukeyHSD(aov(ive15.lm), which=c("vowel.pair")); summary(ive15.lm); 
+```
+
+**F1--F2**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ive12.lm <- lm(dist_elite_F1F2 ~ VTRatio_elite + I(VTRatio_elite^2) + vowel.pair + (VTRatio_elite : vowel.pair) + (I(VTRatio_elite^2) : vowel.pair) + replication,  data=intervowel.dists[ intervowel.dists$fixed.hyoid == FALSE,]); 
+summary(aov(ive12.lm)); TukeyHSD(aov(ive12.lm), which=c("vowel.pair")); summary(ive12.lm); 
+```
+
+**Summarized**
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tmp <- t(do.call(rbind, lapply(list("Dist(F1-F5)"=ive15.lm, "Dist(F1-F2)"=ive12.lm), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of intervowel distance regressions with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=8, fig.height=8, fig.cap="Predicted intervowel distances with 95% prediction intervals function of VTRatio per vowel pair."}
+# Plot all predicted inter-vowel distances together:
+d.ive.dists <- NULL;
+
+# F1-F5 mobile:
+ive15.lm <- lm(dist_elite_F1F5 ~ VTRatio_elite + I(VTRatio_elite^2) + vowel.pair + (VTRatio_elite : vowel.pair) + (I(VTRatio_elite^2) : vowel.pair),  data=intervowel.dists[ intervowel.dists$fixed.hyoid == FALSE,]); 
+d15.pred <- predict(ive15.lm, d15.data <- expand.grid("VTRatio_elite"=seq(0.35,0.55,length.out=100), 
+                                                      "vowel.pair"=unique(intervowel.dists$vowel.pair)), se.fit=TRUE, interval="confidence");
+d15.data <- cbind(d15.data, "ivd15"=d15.pred$fit[,"fit"], "CI95.lwr"=d15.pred$fit[,"lwr"], "CI95.upr"=d15.pred$fit[,"upr"],
+                  "vowel1"=vapply(strsplit(as.character(d15.data$vowel.pair),"-",fixed=TRUE), function(x) x[[1]], character(1)),
+                  "vowel2"=vapply(strsplit(as.character(d15.data$vowel.pair),"-",fixed=TRUE), function(x) x[[2]], character(1)));
+d15.data$vowel1 <- factor(d15.data$vowel1, levels=c("schwa", "a", "ae", "i")); levels(d15.data$vowel1) <- c("[ə]", "[ɑ]", "[æ]", "[i]");
+d15.data$vowel2 <- factor(d15.data$vowel2, levels=c("schwa", "ae", "i", "u")); levels(d15.data$vowel2) <- c("[ə]", "[æ]", "[i]", "[u]");
+d.ive.dists <- rbind(d.ive.dists, cbind("dist"="F1-F5", "larynx"="mobile", d15.data));
+
+# F1-F5 fixed:
+ive15.lm <- lm(dist_elite_F1F5 ~ VTRatio_elite + I(VTRatio_elite^2) + vowel.pair + (VTRatio_elite : vowel.pair) + (I(VTRatio_elite^2) : vowel.pair),  data=intervowel.dists[ intervowel.dists$fixed.hyoid == TRUE,]); 
+d15.pred <- predict(ive15.lm, d15.data <- expand.grid("VTRatio_elite"=seq(0.35,0.55,length.out=100), 
+                                                      "vowel.pair"=unique(intervowel.dists$vowel.pair)), se.fit=TRUE, interval="confidence");
+d15.data <- cbind(d15.data, "ivd15"=d15.pred$fit[,"fit"], "CI95.lwr"=d15.pred$fit[,"lwr"], "CI95.upr"=d15.pred$fit[,"upr"],
+                  "vowel1"=vapply(strsplit(as.character(d15.data$vowel.pair),"-",fixed=TRUE), function(x) x[[1]], character(1)),
+                  "vowel2"=vapply(strsplit(as.character(d15.data$vowel.pair),"-",fixed=TRUE), function(x) x[[2]], character(1)));
+d15.data$vowel1 <- factor(d15.data$vowel1, levels=c("schwa", "a", "ae", "i")); levels(d15.data$vowel1) <- c("[ə]", "[ɑ]", "[æ]", "[i]");
+d15.data$vowel2 <- factor(d15.data$vowel2, levels=c("schwa", "ae", "i", "u")); levels(d15.data$vowel2) <- c("[ə]", "[æ]", "[i]", "[u]");
+d.ive.dists <- rbind(d.ive.dists, cbind("dist"="F1-F5", "larynx"="fixed", d15.data));
+
+# F1-F2 mobile:
+ive15.lm <- lm(dist_elite_F1F2 ~ VTRatio_elite + I(VTRatio_elite^2) + vowel.pair + (VTRatio_elite : vowel.pair) + (I(VTRatio_elite^2) : vowel.pair),  data=intervowel.dists[ intervowel.dists$fixed.hyoid == FALSE,]); 
+d15.pred <- predict(ive15.lm, d15.data <- expand.grid("VTRatio_elite"=seq(0.35,0.55,length.out=100), 
+                                                      "vowel.pair"=unique(intervowel.dists$vowel.pair)), se.fit=TRUE, interval="confidence");
+d15.data <- cbind(d15.data, "ivd15"=d15.pred$fit[,"fit"], "CI95.lwr"=d15.pred$fit[,"lwr"], "CI95.upr"=d15.pred$fit[,"upr"],
+                  "vowel1"=vapply(strsplit(as.character(d15.data$vowel.pair),"-",fixed=TRUE), function(x) x[[1]], character(1)),
+                  "vowel2"=vapply(strsplit(as.character(d15.data$vowel.pair),"-",fixed=TRUE), function(x) x[[2]], character(1)));
+d15.data$vowel1 <- factor(d15.data$vowel1, levels=c("schwa", "a", "ae", "i")); levels(d15.data$vowel1) <- c("[ə]", "[ɑ]", "[æ]", "[i]");
+d15.data$vowel2 <- factor(d15.data$vowel2, levels=c("schwa", "ae", "i", "u")); levels(d15.data$vowel2) <- c("[ə]", "[æ]", "[i]", "[u]");
+d.ive.dists <- rbind(d.ive.dists, cbind("dist"="F1-F2", "larynx"="mobile", d15.data));
+
+# F1-F2 fixed:
+ive15.lm <- lm(dist_elite_F1F2 ~ VTRatio_elite + I(VTRatio_elite^2) + vowel.pair + (VTRatio_elite : vowel.pair) + (I(VTRatio_elite^2) : vowel.pair),  data=intervowel.dists[ intervowel.dists$fixed.hyoid == TRUE,]); 
+d15.pred <- predict(ive15.lm, d15.data <- expand.grid("VTRatio_elite"=seq(0.35,0.55,length.out=100), 
+                                                      "vowel.pair"=unique(intervowel.dists$vowel.pair)), se.fit=TRUE, interval="confidence");
+d15.data <- cbind(d15.data, "ivd15"=d15.pred$fit[,"fit"], "CI95.lwr"=d15.pred$fit[,"lwr"], "CI95.upr"=d15.pred$fit[,"upr"],
+                  "vowel1"=vapply(strsplit(as.character(d15.data$vowel.pair),"-",fixed=TRUE), function(x) x[[1]], character(1)),
+                  "vowel2"=vapply(strsplit(as.character(d15.data$vowel.pair),"-",fixed=TRUE), function(x) x[[2]], character(1)));
+d15.data$vowel1 <- factor(d15.data$vowel1, levels=c("schwa", "a", "ae", "i")); levels(d15.data$vowel1) <- c("[ə]", "[ɑ]", "[æ]", "[i]");
+d15.data$vowel2 <- factor(d15.data$vowel2, levels=c("schwa", "ae", "i", "u")); levels(d15.data$vowel2) <- c("[ə]", "[æ]", "[i]", "[u]");
+d.ive.dists <- rbind(d.ive.dists, cbind("dist"="F1-F2", "larynx"="fixed", d15.data));
+
+# Plot it:
+ggplot(d.ive.dists, aes(x=VTRatio_elite, y=ivd15, color=vowel1, group=vowel.pair)) + xlab("VTRatio") + ylab("Inter-vowel Euclidean distance") + 
+  geom_line(linetype="solid", size=1) + 
+  geom_ribbon(aes(ymin=CI95.lwr, ymax=CI95.upr, fill=vowel1), alpha=0.15, linetype="dotted") +
+  geom_point(aes(x=VTRatio_elite, y=ivd15, fill=vowel1, shape=vowel2), 
+             #data=d15.data[ d15.data$VTRatio_elite %in% seq(0.35,0.55,length.out=100)[c(1,50,100)], ], 
+             data=d.ive.dists[ d.ive.dists$VTRatio_elite %in% c(0.35,0.55), ], 
+             size=4, alpha=1.00) + 
+  #geom_vline(xintercept=std.VTL2.VTRatio.mobile$fit[1], color="darkblue", linetype="dashed") +
+  scale_shape_manual(values=21:25) + scale_color_manual(values=cols4vowels2D) + scale_fill_manual(values=cols4vowels2D) + 
+  facet_grid(larynx ~ dist, scales="fixed") + 
+  guides(colour = guide_legend(order = 1), fill = guide_legend(order = 1), shape = guide_legend(order = 2));
+
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=8, fig.height=6, fig.cap="Raw intervowel distance (F1-F5) function of VTRatio per vowel pair."}
+d <- intervowel.dists[ intervowel.dists$fixed.hyoid == FALSE,];
+d$vowel1 <- factor(d$vowel1, levels=c("a", "ae", "i", "schwa")); levels(d$vowel1) <- c("[ɑ]", "[æ]", "[i]", "[ə]");
+d$vowel2 <- factor(d$vowel2, levels=c("ae", "i", "schwa", "u")); levels(d$vowel2) <- c("[æ]", "[i]", "[ə]", "[u]");
+ggplot(d, aes(x=VTRatio_elite, y=dist_elite_F1F5)) + xlab("VTRatio") + ylab("Inter-vowel Euclidean distance") + 
+  geom_point(alpha=0.5, color="skyblue") + 
+  geom_smooth() + 
+  #geom_vline(xintercept=std.VTL2.VTRatio.mobile$fit[1], color="darkblue", linetype="dashed") +
+  #scale_shape_manual(values=21:25) + scale_color_manual(values=cols4vowels2D) + scale_fill_manual(values=cols4vowels2D) + 
+  facet_grid(vowel1 ~ vowel2, scales="fixed") + 
+  guides(colour = guide_legend(order = 1), fill = guide_legend(order = 1), shape = guide_legend(order = 2));
+```
+
+
+
+#### Target-elite Procrustes distances
+
+```{r procrustes distances, echo=FALSE, message=FALSE, fig.width=8, fig.height=6}
+tmp <- proc.target.elite.dists[ proc.target.elite.dists$fixed.hyoid == FALSE, ];
+ggplot(tmp, aes(x=VTRatio_elite, y=Proc.rmsd, color=LEN)) + xlab("VTRatio") + ylab("Procrustes distance") + ylim(0,NA) +
+  geom_point(alpha=0.50) + geom_smooth(method="loess", color="yellow1") 
+  #geom_vline(xintercept=std.VTL2.VTRatio$fit[1], color="darkblue", linetype="dashed");
+
+lm.proc.dist <- lm(Proc.rmsd ~ VTRatio_elite + I(VTRatio_elite^2) + replication, data=tmp); summary(lm.proc.dist);
+tmp <- t(do.call(rbind, lapply(list("Procr.dist"=lm.proc.dist), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of Procrustes distance regression (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+
+
+### Principal Component Analysis
+
+#### PCA acoustics & articulation
+
+##### Mobile hyoid
+
+```{r PCs mobile hyoid, echo=FALSE, warning=FALSE, message=FALSE, fig.width=8, fig.height=7}
+# Mobile hyoid:
+PCs.mobile <- prcomp( ~ F1 + F2 + F3 + F4 + F5 + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + HX + HY + VTRatio + LEN, data=results.elite[ results.elite$fixed.hyoid == FALSE, ], scale=TRUE);
+#summary(PCs.mobile);
+```
+
+```{r PCs plotting for paper, echo=FALSE, message=FALSE, warning=FALSE, fig.width=2*4.5, fig.height=3*4.5, fig.cap="PCA of articulatory and acoustic parameters for the mobile hyoid."}
+multiplot(plotlist=list(fviz_screeplot(PCs.mobile, main="Screeplot of the PCs"), 
+                        fviz_contrib(PCs.mobile, choice = "var", axes = 2,
+                                     fill=c("steelblue","lightsalmon")[as.numeric(PCs.mobile$rotation[order(abs(PCs.mobile$rotation[,"PC2"]),decreasing=TRUE),"PC2"] < 0)+1]) + 
+                          ggtitle("Variable contributions on PC2"),
+                        fviz_pca_var(PCs.mobile, axes=c(1,2), col.var="contrib", title="Variable contributions on PC1 & PC2"),
+                        fviz_contrib(PCs.mobile, choice = "var", axes = 1,
+                                     fill=c("steelblue","lightsalmon")[as.numeric(PCs.mobile$rotation[order(abs(PCs.mobile$rotation[,"PC1"]),decreasing=TRUE),"PC1"] < 0)+1]) + 
+                          ggtitle("Variable contributions on PC1"),
+                        fviz_contrib(PCs.mobile, choice = "var", axes = 3,
+                                     fill=c("steelblue","lightsalmon")[as.numeric(PCs.mobile$rotation[order(abs(PCs.mobile$rotation[,"PC3"]),decreasing=TRUE),"PC3"] < 0)+1]) + 
+                          ggtitle("Variable contributions on PC3"),
+                        fviz_pca_var(PCs.mobile, axes=c(2,3), col.var="contrib", title="Variable contributions on PC2 & PC3")), 
+          cols=2);
+```
+
+```{r target acoustics PCs plotting for paper, echo=FALSE, message=FALSE, warning=FALSE, fig.width=2*4.5, fig.height=2*4.5, fig.cap="PCA on acoustics only for the mobile hyoid."}
+# the target acoustics:
+tmp <- unique(results[ results$fixed.hyoid == FALSE, c("F1_target", "F2_target", "F3_target", "F4_target", "F5_target")]);
+names(tmp) <- c("F1t", "F2t", "F3t", "F4t", "F5t");
+PCs.target.acoustics <- prcomp( ~ F1t + F2t + F3t + F4t + F5t , data=tmp, scale=TRUE);
+#summary(PCs.target.acoustics);
+
+multiplot(plotlist=list(fviz_screeplot(PCs.target.acoustics, main="Screeplot of the PCs"), 
+                        fviz_contrib(PCs.target.acoustics, choice = "var", axes = 2,
+                                     fill=c("steelblue","lightsalmon")[as.numeric(PCs.target.acoustics$rotation[order(abs(PCs.target.acoustics$rotation[,"PC2"]),decreasing=TRUE),"PC2"] < 0)+1]) + 
+                          ggtitle("Variable contributions on PC2"),
+                        fviz_contrib(PCs.target.acoustics, choice = "var", axes = 1,
+                                     fill=c("steelblue","lightsalmon")[as.numeric(PCs.target.acoustics$rotation[order(abs(PCs.target.acoustics$rotation[,"PC1"]),decreasing=TRUE),"PC1"] < 0)+1]) + 
+                          ggtitle("Variable contributions on PC1"),
+                        fviz_pca_var(PCs.target.acoustics, axes=c(1,2), col.var="contrib", title="Variable contributions on PC1 & PC2")),
+          cols=2);
+```
+
+The first three PCs explain together `r sprintf("%.1f",100*summary(PCs.mobile)$importance["Cumulative Proportion","PC3"])`% of the variance:
+
+  - *PC1* explains `r sprintf("%.1f",100*summary(PCs.mobile)$importance["Proportion of Variance","PC1"])`% of variance;  
+  - *PC2* explains `r sprintf("%.1f",100*summary(PCs.mobile)$importance["Proportion of Variance","PC2"])`% of variance; 
+  - *PC3* explains `r sprintf("%.1f",100*summary(PCs.mobile)$importance["Proportion of Variance","PC3"])`% of variance.
+
+
+
+### Stats (mobile hyoid only)
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# The mobile hyoid data:
+d <- results[ results$fixed.hyoid == FALSE, c("condition", "LEN", "vowel", "replication", "generation", 
+                                              "F1_elite", "F2_elite", "F3_elite", "F4_elite", "F5_elite", 
+                                              "F1.error", "F2.error", "F3.error", "F4.error", "F5.error",
+                                              "F1_target", "F2_target", "F3_target", "F4_target", "F5_target", 
+                                              "JA_elite", "LP_elite", "LD_elite", "TCX_elite", "TCY_elite", "TTX_elite", "TTY_elite", "TBX_elite", "TBY_elite", 
+                                              "HX_elite", "HY_elite", "HY_elite_norm", "hyoidX_elite", "hyoidY_elite", "VTRatio_elite")];
+names(d) <- c("condition", "LEN", "vowel", "replication", "generation",  
+              "F1", "F2", "F3", "F4", "F5", 
+              "F1.error", "F2.error", "F3.error", "F4.error", "F5.error",
+              "F1_target", "F2_target", "F3_target", "F4_target", "F5_target", 
+              "JA", "LP", "LD", "TCX", "TCY", "TTX", "TTY", "TBX", "TBY", 
+              "HX", "HY", "HY_norm", "hyoidX", "hyoidY", "VTRatio");
+d <- cbind( d,
+            PCs.mobile$x,
+            "acoustic.err"=sqrt((d$F1_target - d$F1)^2 + 
+                                  (d$F2_target - d$F2)^2 + 
+                                  (d$F3_target - d$F3)^2 + 
+                                  (d$F4_target - d$F4)^2 + 
+                                  (d$F5_target - d$F5)^2));
+
+```
+
+
+#### Acoustics on VTRatio and articulatory parameters
+
+***F1***
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# F1:
+f1.m0 <- lm(F1 ~ VTRatio + I(VTRatio^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 replication + generation, data=d); 
+summary(aov(f1.m0)); TukeyHSD(aov(f1.m0), which=c("vowel")); summary(f1.m0); 
+
+# F1 error:
+f1e.m0 <- lm(F1.error ~ VTRatio + I(VTRatio^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 replication + generation, data=d);
+summary(aov(f1e.m0)); TukeyHSD(aov(f1e.m0), which=c("vowel")); summary(f1e.m0);
+```
+
+***F2***
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# F2:
+f2.m0 <- lm(F2 ~ VTRatio + I(VTRatio^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 replication + generation, data=d); 
+summary(aov(f2.m0)); TukeyHSD(aov(f2.m0), which=c("vowel")); summary(f2.m0); 
+
+# F2 error:
+f2e.m0 <- lm(F2.error ~ VTRatio + I(VTRatio^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 replication + generation, data=d);
+summary(aov(f2e.m0)); TukeyHSD(aov(f2e.m0), which=c("vowel")); summary(f2e.m0);
+```
+
+***F3***
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# F3:
+f3.m0 <- lm(F3 ~ VTRatio + I(VTRatio^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 replication + generation, data=d); 
+summary(aov(f3.m0)); TukeyHSD(aov(f3.m0), which=c("vowel")); summary(f3.m0); 
+
+# F3 error:
+f3e.m0 <- lm(F3.error ~ VTRatio + I(VTRatio^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 replication + generation, data=d);
+summary(aov(f3e.m0)); TukeyHSD(aov(f3e.m0), which=c("vowel")); summary(f3e.m0);
+```
+
+***F4***
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# F4:
+f4.m0 <- lm(F4 ~ VTRatio + I(VTRatio^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 replication + generation, data=d); 
+summary(aov(f4.m0)); TukeyHSD(aov(f4.m0), which=c("vowel")); summary(f4.m0); 
+
+# F4 error:
+f4e.m0 <- lm(F4.error ~ VTRatio + I(VTRatio^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 replication + generation, data=d);
+summary(aov(f4e.m0)); TukeyHSD(aov(f4e.m0), which=c("vowel")); summary(f4e.m0);
+```
+
+***F5***
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# F5:
+f5.m0 <- lm(F5 ~ VTRatio + I(VTRatio^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 replication + generation, data=d); 
+summary(aov(f5.m0)); TukeyHSD(aov(f5.m0), which=c("vowel")); summary(f5.m0); 
+
+# F5 error:
+f5e.m0 <- lm(F5.error ~ VTRatio + I(VTRatio^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 replication + generation, data=d);
+summary(aov(f5e.m0)); TukeyHSD(aov(f5e.m0), which=c("vowel")); summary(f5e.m0);
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tmp <- t(do.call(rbind, lapply(list("F1"=f1.m0, "F1.err"=f1e.m0, "F2"=f2.m0, "F2.err"=f2e.m0, "F3"=f3.m0, "F3.err"=f3e.m0, "F4"=f4.m0, "F4.err"=f4e.m0, "F5"=f5.m0, "F5.err"=f5e.m0), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of F1--F5 regressions with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+
+#### PC1 -- PC3 on VTRatio
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# PC1:
+pc1.m0 <- lm(PC1 ~ VTRatio + I(VTRatio^2) +  + vowel + replication + generation + (VTRatio : vowel) + (I(VTRatio^2) : vowel), data=d); 
+anova(pc1.m0); TukeyHSD(aov(pc1.m0), which=c("vowel")); summary(pc1.m0); # the best model
+
+# PC2:
+pc2.m0 <- lm(PC2 ~ VTRatio + I(VTRatio^2) +  + vowel + replication + generation + (VTRatio : vowel) + (I(VTRatio^2) : vowel), data=d); 
+anova(pc2.m0); TukeyHSD(aov(pc2.m0), which=c("vowel")); summary(pc2.m0); # the best model
+
+# PC3:
+pc3.m0 <- lm(PC3 ~ VTRatio + I(VTRatio^2) +  + vowel + replication + generation + (VTRatio : vowel) + (I(VTRatio^2) : vowel), data=d); 
+anova(pc3.m0); TukeyHSD(aov(pc3.m0), which=c("vowel")); summary(pc3.m0); # the best model
+
+# Summaries:
+tmp <- t(do.call(rbind, lapply(list("PC1"=pc1.m0, "PC2"=pc2.m0, "PC3"=pc3.m0), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of PC1 -- PC3 regressions with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+
+#### Overall acoustic error over F1 -- F5 on VTRatio
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+err.m0 <- lm(acoustic.err ~ VTRatio + I(VTRatio^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 replication + generation, data=d); 
+anova(err.m0);  TukeyHSD(aov(err.m0), which=c("vowel","condition"));summary(err.m0);
+
+# Summaries:
+tmp <- t(do.call(rbind, lapply(list("F1-F5.err"=err.m0), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of F1-F5 error regressions with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+```{r echo=FALSE, message=FALSE, fig.width=8, fig.height=6}
+tmp <- d; levels(tmp$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]");
+ggplot(tmp, aes(x=VTRatio, y=acoustic.err, color=LEN)) + xlab("VTRatio") + ylab("Euclidean distance") + ylim(0,NA) +
+  geom_point(alpha=0.50) + geom_smooth(method="loess", color="yellow1") + 
+  #geom_vline(xintercept=std.VTL2.VTRatio$fit[1], color="darkblue", linetype="dashed") + 
+  facet_grid(. ~ vowel);
+
+lm.euclid.dist <- lm(acoustic.err ~ vowel + VTRatio + I(VTRatio^2) + (vowel : VTRatio) + (vowel : I(VTRatio^2)) + replication, data=d); anova(lm.euclid.dist);  TukeyHSD(aov(lm.euclid.dist), which=c("vowel"));summary(lm.euclid.dist);
+tmp <- t(do.call(rbind, lapply(list("Euclid.dist"=lm.euclid.dist), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of Euclidean distance regression (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+
+#### Is VT ratio compensated by other articulators?
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# Add the articulatory PCS:
+PCs.art.mobile <- prcomp( ~ JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + HX + HY + VTRatio + LEN, data=results.elite[ results.elite$fixed.hyoid == FALSE, ], scale=TRUE);
+tmp <- PCs.art.mobile$x; colnames(tmp) <- paste0(colnames(tmp),".art");
+d <- cbind( d, tmp);
+
+# JA:
+ja.m0 <- lm(JA ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(ja.m0)); TukeyHSD(aov(ja.m0), which=c("vowel")); summary(ja.m0); 
+
+# LP:
+lp.m0 <- lm(LP ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(lp.m0)); TukeyHSD(aov(lp.m0), which=c("vowel")); summary(lp.m0); 
+
+# LD:
+ld.m0 <- lm(LD ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(ld.m0)); TukeyHSD(aov(ld.m0), which=c("vowel")); summary(ld.m0); 
+
+# TCX:
+tcx.m0 <- lm(TCX ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(tcx.m0)); TukeyHSD(aov(tcx.m0), which=c("vowel")); summary(tcx.m0); 
+
+# TCY:
+tcy.m0 <- lm(TCY ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(tcy.m0)); TukeyHSD(aov(tcy.m0), which=c("vowel")); summary(tcy.m0); 
+
+# TTX:
+ttx.m0 <- lm(TTX ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(ttx.m0)); TukeyHSD(aov(ttx.m0), which=c("vowel")); summary(ttx.m0); 
+
+# TTY:
+tty.m0 <- lm(TTY ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(tty.m0)); TukeyHSD(aov(tty.m0), which=c("vowel")); summary(tty.m0); 
+
+# TBX:
+tbx.m0 <- lm(TBX ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(tbx.m0)); TukeyHSD(aov(tbx.m0), which=c("vowel")); summary(tbx.m0); 
+
+# TBY:
+tby.m0 <- lm(TBY ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(tby.m0)); TukeyHSD(aov(tby.m0), which=c("vowel")); summary(tby.m0); 
+
+# HX:
+hx.m0 <- lm(HX ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(hx.m0)); TukeyHSD(aov(hx.m0), which=c("vowel")); summary(hx.m0); 
+
+# HY:
+hy.m0 <- lm(HY ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(hy.m0)); TukeyHSD(aov(hy.m0), which=c("vowel")); summary(hy.m0); 
+
+# HY_norm:
+hy_norm.m0 <- lm(HY_norm ~ VTRatio + I(VTRatio^2) + vowel +  LEN + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(hy_norm.m0)); TukeyHSD(aov(hy_norm.m0), which=c("vowel")); summary(hy_norm.m0); 
+
+# hyoidX:
+hyoidx.m0 <- lm(hyoidX ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(hyoidx.m0)); TukeyHSD(aov(hyoidx.m0), which=c("vowel")); summary(hyoidx.m0); 
+
+# hyoidY:
+hyoidy.m0 <- lm(hyoidY ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(hyoidy.m0)); TukeyHSD(aov(hyoidy.m0), which=c("vowel")); summary(hyoidy.m0); 
+
+# PC1:
+pc1art.m0 <- lm(PC1.art ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(pc1art.m0)); TukeyHSD(aov(pc1art.m0), which=c("vowel")); summary(pc1art.m0); 
+
+# PC2:
+pc2art.m0 <- lm(PC2.art ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(pc2art.m0)); TukeyHSD(aov(pc2art.m0), which=c("vowel")); summary(pc2art.m0); 
+
+# PC3:
+pc3art.m0 <- lm(PC3.art ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(pc3art.m0)); TukeyHSD(aov(pc3art.m0), which=c("vowel")); summary(pc3art.m0); 
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tmp <- t(do.call(rbind, lapply(list("JA"=ja.m0, "LP"=lp.m0, "LD"=ld.m0, "TCX"=tcx.m0, "TCY"=tcy.m0, "TTX"=ttx.m0, "TTY"=tty.m0, "TBX"=tbx.m0, "TBY"=tby.m0, "HX"=hx.m0, "HY"=hy.m0, "hyoidX"=hyoidx.m0, "hyoidY"=hyoidy.m0, "PC1(art)"=pc1art.m0, "PC2(art)"=pc2art.m0, "PC3(art)"=pc3art.m0), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of regressions of articulators on VT ratio with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tmp <- t(do.call(rbind, lapply(list("HY(normalized)"=hy_norm.m0), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of regressions of articulators on VT ratio with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+```{r plot articulators on VT ratio, echo=FALSE, message=FALSE, fig.width=2*5+2, fig.height=2*14}
+# For plotting, get rid of replication (ns anyway):
+ja.m0 <- lm(JA ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+lp.m0 <- lm(LP ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+ld.m0 <- lm(LD ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+tcx.m0 <- lm(TCX ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+tcy.m0 <- lm(TCY ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+ttx.m0 <- lm(TTX ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+tty.m0 <- lm(TTY ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+tbx.m0 <- lm(TBX ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+tby.m0 <- lm(TBY ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+hx.m0 <- lm(HX ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+hy.m0 <- lm(HY ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+hyoidx.m0 <- lm(hyoidX ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+hyoidy.m0 <- lm(hyoidY ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+pc1art.m0 <- lm(PC1.art ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+pc2art.m0 <- lm(PC2.art ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+pc3art.m0 <- lm(PC3.art ~ VTRatio + I(VTRatio^2) + vowel + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel) + 
+                 generation, data=d); 
+artvtrat.data <- expand.grid("VTRatio"=seq(0.35,0.55, length.out=100), 
+                             "vowel"=levels(d$vowel),
+                             "generation"=seq(min(d$generation),max(d$generation),length.out=10));
+vtrat.ja.pred <- predict(ja.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.lp.pred <- predict(lp.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.ld.pred <- predict(ld.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.tcx.pred <- predict(tcx.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.tcy.pred <- predict(tcy.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.ttx.pred <- predict(ttx.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.tty.pred <- predict(tty.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.tbx.pred <- predict(tbx.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.tby.pred <- predict(tby.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.hx.pred <- predict(hx.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.hy.pred <- predict(hy.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.hyoidx.pred <- predict(hyoidx.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.hyoidy.pred <- predict(hyoidy.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.pc1.pred <- predict(pc1art.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.pc2.pred <- predict(pc2art.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.pc3.pred <- predict(pc3art.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+artvtrat.data <- rbind(cbind(artvtrat.data, "articulator"="JA", "values"=vtrat.ja.pred$fit[,"fit"], "CI95.lwr"=vtrat.ja.pred$fit[,"lwr"], "CI95.upr"=vtrat.ja.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="LP", "values"=vtrat.lp.pred$fit[,"fit"], "CI95.lwr"=vtrat.lp.pred$fit[,"lwr"], "CI95.upr"=vtrat.lp.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="LD", "values"=vtrat.ld.pred$fit[,"fit"], "CI95.lwr"=vtrat.ld.pred$fit[,"lwr"], "CI95.upr"=vtrat.ld.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="TCX", "values"=vtrat.tcx.pred$fit[,"fit"], "CI95.lwr"=vtrat.tcx.pred$fit[,"lwr"], "CI95.upr"=vtrat.tcx.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="TCY", "values"=vtrat.tcy.pred$fit[,"fit"], "CI95.lwr"=vtrat.tcy.pred$fit[,"lwr"], "CI95.upr"=vtrat.tcy.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="TTX", "values"=vtrat.ttx.pred$fit[,"fit"], "CI95.lwr"=vtrat.ttx.pred$fit[,"lwr"], "CI95.upr"=vtrat.ttx.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="TTY", "values"=vtrat.tty.pred$fit[,"fit"], "CI95.lwr"=vtrat.tty.pred$fit[,"lwr"], "CI95.upr"=vtrat.tty.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="TBX", "values"=vtrat.tbx.pred$fit[,"fit"], "CI95.lwr"=vtrat.tbx.pred$fit[,"lwr"], "CI95.upr"=vtrat.tbx.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="TBY", "values"=vtrat.tby.pred$fit[,"fit"], "CI95.lwr"=vtrat.tby.pred$fit[,"lwr"], "CI95.upr"=vtrat.tby.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="HX", "values"=vtrat.hx.pred$fit[,"fit"], "CI95.lwr"=vtrat.hx.pred$fit[,"lwr"], "CI95.upr"=vtrat.hx.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="HY", "values"=vtrat.hy.pred$fit[,"fit"], "CI95.lwr"=vtrat.hy.pred$fit[,"lwr"], "CI95.upr"=vtrat.hy.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="hyoidX", "values"=vtrat.hyoidx.pred$fit[,"fit"], "CI95.lwr"=vtrat.hyoidx.pred$fit[,"lwr"], "CI95.upr"=vtrat.hyoidx.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="hyoidY", "values"=vtrat.hyoidy.pred$fit[,"fit"], "CI95.lwr"=vtrat.hyoidy.pred$fit[,"lwr"], "CI95.upr"=vtrat.hyoidy.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="PC1(art)", "values"=vtrat.pc1.pred$fit[,"fit"], "CI95.lwr"=vtrat.pc1.pred$fit[,"lwr"], "CI95.upr"=vtrat.pc1.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="PC2(art)", "values"=vtrat.pc2.pred$fit[,"fit"], "CI95.lwr"=vtrat.pc2.pred$fit[,"lwr"], "CI95.upr"=vtrat.pc2.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="PC3(art)", "values"=vtrat.pc3.pred$fit[,"fit"], "CI95.lwr"=vtrat.pc3.pred$fit[,"lwr"], "CI95.upr"=vtrat.pc3.pred$fit[,"upr"]));
+artvtrat.data$vowel   <- factor(artvtrat.data$vowel, levels=levels(d$vowel));
+levels(artvtrat.data$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]");
+artvtrat.data$VTRatio <- round(artvtrat.data$VTRatio, digits=3);
+```
+
+```{r plot articulators on VT ratio part i, echo=FALSE, message=FALSE, fig.width=2*5+2, fig.height=2*7, fig.cap="Regression of articulators on VTRatio, vowel and generation for mobile hyoid (with 95%CI); Part I."}
+ggplot(artvtrat.data[artvtrat.data$articulator %in% c("JA","LP","LD","TCX","TCY", "TTX","TTY"),], aes(x=VTRatio, y=values, color=generation)) + 
+  geom_point() + #geom_smooth(method="loess", color="yellow", se=FALSE) +
+  #geom_line() + 
+  #geom_ribbon(aes(ymin=CI95.lwr, ymax=CI95.upr, color=vowel, fill=vowel), alpha=0.3) +
+  #geom_point(aes(x=generation, y=values, color=vowel, fill=vowel, shape=vowel), 
+  #           data=pcart.data[ pcart.data$generation %in% c(min(results.PCs.art$generation),max(results.PCs.art$generation)), ], 
+  #           size=3, alpha=0.75) + 
+  #scale_shape_manual(values=21:25) + scale_color_manual(values=cols4vowels2D) + scale_fill_manual(values=cols4vowels2D) +
+  facet_grid(articulator ~ vowel, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+```
+```{r plot articulators on VT ratio part ii, echo=FALSE, message=FALSE, fig.width=2*5+2, fig.height=2*7, fig.cap="Regression of articulators on VTRatio, vowel and generation for mobile hyoid (with 95%CI); Part II."}
+ggplot(artvtrat.data[artvtrat.data$articulator %in% c("TBX","TBY","HX","HY","PC1(art)","PC2(art)","PC3(art)"),], aes(x=VTRatio, y=values, color=generation)) + 
+  geom_point() + #geom_smooth(method="loess", color="yellow", se=FALSE) +
+  #geom_line() + 
+  #geom_ribbon(aes(ymin=CI95.lwr, ymax=CI95.upr, color=vowel, fill=vowel), alpha=0.3) +
+  #geom_point(aes(x=generation, y=values, color=vowel, fill=vowel, shape=vowel), 
+  #           data=pcart.data[ pcart.data$generation %in% c(min(results.PCs.art$generation),max(results.PCs.art$generation)), ], 
+  #           size=3, alpha=0.75) + 
+  #scale_shape_manual(values=21:25) + scale_color_manual(values=cols4vowels2D) + scale_fill_manual(values=cols4vowels2D) +
+  facet_grid(articulator ~ vowel, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+```{r plot articulators on VT ratio part iii, echo=FALSE, message=FALSE, fig.width=2*5+2, fig.height=2*2, fig.cap="Regression of articulators on VTRatio, vowel and generation for mobile hyoid (with 95%CI); Part III."}
+ggplot(artvtrat.data[artvtrat.data$articulator %in% c("hyoidX","hyoidY"),], aes(x=VTRatio, y=values, color=generation)) + 
+  geom_point() + #geom_smooth(method="loess", color="yellow", se=FALSE) +
+  #geom_line() + 
+  #geom_ribbon(aes(ymin=CI95.lwr, ymax=CI95.upr, color=vowel, fill=vowel), alpha=0.3) +
+  #geom_point(aes(x=generation, y=values, color=vowel, fill=vowel, shape=vowel), 
+  #           data=pcart.data[ pcart.data$generation %in% c(min(results.PCs.art$generation),max(results.PCs.art$generation)), ], 
+  #           size=3, alpha=0.75) + 
+  #scale_shape_manual(values=21:25) + scale_color_manual(values=cols4vowels2D) + scale_fill_manual(values=cols4vowels2D) +
+  facet_grid(articulator ~ vowel, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+```
+```{r plot HY(norm) on VT ratio part iv, echo=FALSE, message=FALSE, fig.width=2*5+2, fig.height=2*1+2, fig.cap="Regression of HY(normalized) on VTRatio, LEN and vowel for mobile hyoid (with 95%CI); Part IV."}
+hy_norm.m0 <- lm(HY_norm ~ VTRatio + I(VTRatio^2) + vowel +  LEN + 
+                 (VTRatio : vowel) + (I(VTRatio^2) : vowel), data=d); 
+artvtrat.data <- expand.grid("VTRatio"=seq(0.35,0.55, length.out=100), 
+                             "vowel"=levels(d$vowel),
+                             "LEN"=unique(d$LEN));
+vtrat.hy_norm.pred <- predict(hy_norm.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+artvtrat.data <- cbind(artvtrat.data, "articulator"="HY(norm)", "values"=vtrat.hy_norm.pred$fit[,"fit"], "CI95.lwr"=vtrat.hy_norm.pred$fit[,"lwr"], "CI95.upr"=vtrat.hy_norm.pred$fit[,"upr"]);
+artvtrat.data$vowel   <- factor(artvtrat.data$vowel, levels=levels(d$vowel));
+artvtrat.data$VTRatio <- round(artvtrat.data$VTRatio, digits=3);
+ggplot(artvtrat.data, aes(x=VTRatio, y=values, color=LEN)) + 
+  geom_point() +
+  facet_grid(. ~ vowel, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+
+
+
+
+
+#### Acoustics on LEN and articulatory parameters
+
+***F1***
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# F1:
+f1.m0 <- lm(F1 ~ LEN + I(LEN^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 (JA : LEN) + (LP : LEN) + (LD : LEN) + (TCX : LEN) + (TCY : LEN) + (TTX : LEN) + (TTY : LEN) + (TBX : LEN) + (TBY : LEN) + (hyoidX : LEN) + (hyoidY : LEN) +
+                 replication + generation, data=d); 
+summary(aov(f1.m0)); TukeyHSD(aov(f1.m0), which=c("vowel")); summary(f1.m0); 
+
+# F1 error:
+f1e.m0 <- lm(F1.error ~ LEN + I(LEN^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 (JA : LEN) + (LP : LEN) + (LD : LEN) + (TCX : LEN) + (TCY : LEN) + (TTX : LEN) + (TTY : LEN) + (TBX : LEN) + (TBY : LEN) + (hyoidX : LEN) + (hyoidY : LEN) +
+                 replication + generation, data=d); 
+summary(aov(f1e.m0)); TukeyHSD(aov(f1e.m0), which=c("vowel")); summary(f1e.m0);
+```
+
+***F2***
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# F2:
+f2.m0 <- lm(F2 ~ LEN + I(LEN^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 (JA : LEN) + (LP : LEN) + (LD : LEN) + (TCX : LEN) + (TCY : LEN) + (TTX : LEN) + (TTY : LEN) + (TBX : LEN) + (TBY : LEN) + (hyoidX : LEN) + (hyoidY : LEN) +
+                 replication + generation, data=d);  
+summary(aov(f2.m0)); TukeyHSD(aov(f2.m0), which=c("vowel")); summary(f2.m0); 
+
+# F2 error:
+f2e.m0 <- lm(F2.error ~ LEN + I(LEN^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 (JA : LEN) + (LP : LEN) + (LD : LEN) + (TCX : LEN) + (TCY : LEN) + (TTX : LEN) + (TTY : LEN) + (TBX : LEN) + (TBY : LEN) + (hyoidX : LEN) + (hyoidY : LEN) +
+                 replication + generation, data=d); 
+summary(aov(f2e.m0)); TukeyHSD(aov(f2e.m0), which=c("vowel")); summary(f2e.m0);
+```
+
+***F3***
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# F3:
+f3.m0 <- lm(F3 ~ LEN + I(LEN^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 (JA : LEN) + (LP : LEN) + (LD : LEN) + (TCX : LEN) + (TCY : LEN) + (TTX : LEN) + (TTY : LEN) + (TBX : LEN) + (TBY : LEN) + (hyoidX : LEN) + (hyoidY : LEN) +
+                 replication + generation, data=d); 
+summary(aov(f3.m0)); TukeyHSD(aov(f3.m0), which=c("vowel")); summary(f3.m0); 
+
+# F3 error:
+f3e.m0 <- lm(F3.error ~ LEN + I(LEN^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 (JA : LEN) + (LP : LEN) + (LD : LEN) + (TCX : LEN) + (TCY : LEN) + (TTX : LEN) + (TTY : LEN) + (TBX : LEN) + (TBY : LEN) + (hyoidX : LEN) + (hyoidY : LEN) +
+                 replication + generation, data=d); 
+summary(aov(f3e.m0)); TukeyHSD(aov(f3e.m0), which=c("vowel")); summary(f3e.m0);
+```
+
+***F4***
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# F4:
+f4.m0 <- lm(F4 ~ LEN + I(LEN^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 (JA : LEN) + (LP : LEN) + (LD : LEN) + (TCX : LEN) + (TCY : LEN) + (TTX : LEN) + (TTY : LEN) + (TBX : LEN) + (TBY : LEN) + (hyoidX : LEN) + (hyoidY : LEN) +
+                 replication + generation, data=d); 
+summary(aov(f4.m0)); TukeyHSD(aov(f4.m0), which=c("vowel")); summary(f4.m0); 
+
+# F4 error:
+f4e.m0 <- lm(F4.error ~ LEN + I(LEN^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 (JA : LEN) + (LP : LEN) + (LD : LEN) + (TCX : LEN) + (TCY : LEN) + (TTX : LEN) + (TTY : LEN) + (TBX : LEN) + (TBY : LEN) + (hyoidX : LEN) + (hyoidY : LEN) +
+                 replication + generation, data=d); 
+summary(aov(f4e.m0)); TukeyHSD(aov(f4e.m0), which=c("vowel")); summary(f4e.m0);
+```
+
+***F5***
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# F5:
+f5.m0 <- lm(F5 ~ LEN + I(LEN^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 (JA : LEN) + (LP : LEN) + (LD : LEN) + (TCX : LEN) + (TCY : LEN) + (TTX : LEN) + (TTY : LEN) + (TBX : LEN) + (TBY : LEN) + (hyoidX : LEN) + (hyoidY : LEN) +
+                 replication + generation, data=d); 
+summary(aov(f5.m0)); TukeyHSD(aov(f5.m0), which=c("vowel")); summary(f5.m0); 
+
+# F5 error:
+f5e.m0 <- lm(F5.error ~ LEN + I(LEN^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 (JA : LEN) + (LP : LEN) + (LD : LEN) + (TCX : LEN) + (TCY : LEN) + (TTX : LEN) + (TTY : LEN) + (TBX : LEN) + (TBY : LEN) + (hyoidX : LEN) + (hyoidY : LEN) +
+                 replication + generation, data=d); 
+summary(aov(f5e.m0)); TukeyHSD(aov(f5e.m0), which=c("vowel")); summary(f5e.m0);
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tmp <- t(do.call(rbind, lapply(list("F1"=f1.m0, "F1.err"=f1e.m0, "F2"=f2.m0, "F2.err"=f2e.m0, "F3"=f3.m0, "F3.err"=f3e.m0, "F4"=f4.m0, "F4.err"=f4e.m0, "F5"=f5.m0, "F5.err"=f5e.m0), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of F1--F5 regressions with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+
+#### Overall acoustic error over F1 -- F5 on LEN
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+err.m0 <- lm(acoustic.err ~ LEN + I(LEN^2) + vowel + JA + LP + LD + TCX + TCY + TTX + TTY + TBX + TBY + hyoidX + hyoidY +
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 (JA : vowel) + (LP : vowel) + (LD : vowel) + (TCX : vowel) + (TCY : vowel) + (TTX : vowel) + (TTY : vowel) + (TBX : vowel) + (TBY : vowel) + (hyoidX : vowel) + (hyoidY : vowel) +
+                 (JA : LEN) + (LP : LEN) + (LD : LEN) + (TCX : LEN) + (TCY : LEN) + (TTX : LEN) + (TTY : LEN) + (TBX : LEN) + (TBY : LEN) + (hyoidX : LEN) + (hyoidY : LEN) +
+                 replication + generation, data=d); 
+anova(err.m0);  TukeyHSD(aov(err.m0), which=c("vowel","condition"));summary(err.m0);
+
+# Summaries:
+tmp <- t(do.call(rbind, lapply(list("F1-F5.err"=err.m0), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of F1-F5 error regressions with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+
+#### Is larynx base height compensated by other articulators?
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# JA:
+ja.m0 <- lm(JA ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(ja.m0)); TukeyHSD(aov(ja.m0), which=c("vowel")); summary(ja.m0); 
+
+# LP:
+lp.m0 <- lm(LP ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(lp.m0)); TukeyHSD(aov(lp.m0), which=c("vowel")); summary(lp.m0); 
+
+# LD:
+ld.m0 <- lm(LD ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(ld.m0)); TukeyHSD(aov(ld.m0), which=c("vowel")); summary(ld.m0); 
+
+# TCX:
+tcx.m0 <- lm(TCX ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(tcx.m0)); TukeyHSD(aov(tcx.m0), which=c("vowel")); summary(tcx.m0); 
+
+# TCY:
+tcy.m0 <- lm(TCY ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(tcy.m0)); TukeyHSD(aov(tcy.m0), which=c("vowel")); summary(tcy.m0); 
+
+# TTX:
+ttx.m0 <- lm(TTX ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(ttx.m0)); TukeyHSD(aov(ttx.m0), which=c("vowel")); summary(ttx.m0); 
+
+# TTY:
+tty.m0 <- lm(TTY ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(tty.m0)); TukeyHSD(aov(tty.m0), which=c("vowel")); summary(tty.m0); 
+
+# TBX:
+tbx.m0 <- lm(TBX ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(tbx.m0)); TukeyHSD(aov(tbx.m0), which=c("vowel")); summary(tbx.m0); 
+
+# TBY:
+tby.m0 <- lm(TBY ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(tby.m0)); TukeyHSD(aov(tby.m0), which=c("vowel")); summary(tby.m0); 
+
+# hyoidX:
+hx.m0 <- lm(hyoidX ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(hx.m0)); TukeyHSD(aov(hx.m0), which=c("vowel")); summary(hx.m0); 
+
+# hyoidY:
+hy.m0 <- lm(hyoidY ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(hy.m0)); TukeyHSD(aov(hy.m0), which=c("vowel")); summary(hy.m0); 
+
+# PC1:
+pc1art.m0 <- lm(PC1.art ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(pc1art.m0)); TukeyHSD(aov(pc1art.m0), which=c("vowel")); summary(pc1art.m0); 
+
+# PC2:
+pc2art.m0 <- lm(PC2.art ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(pc2art.m0)); TukeyHSD(aov(pc2art.m0), which=c("vowel")); summary(pc2art.m0); 
+
+# PC3:
+pc3art.m0 <- lm(PC3.art ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(pc3art.m0)); TukeyHSD(aov(pc3art.m0), which=c("vowel")); summary(pc3art.m0); 
+
+# F1:
+f1.m0 <- lm(F1 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(f1.m0)); TukeyHSD(aov(f1.m0), which=c("vowel")); summary(f1.m0); 
+
+# F1 error:
+f1e.m0 <- lm(F1.error ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(f1e.m0)); TukeyHSD(aov(f1e.m0), which=c("vowel")); summary(f1e.m0); 
+
+# F2:
+f2.m0 <- lm(F2 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(f2.m0)); TukeyHSD(aov(f2.m0), which=c("vowel")); summary(f2.m0); 
+
+# F2 error:
+f2e.m0 <- lm(F2.error ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(f2e.m0)); TukeyHSD(aov(f2e.m0), which=c("vowel")); summary(f2e.m0); 
+
+# F3:
+f3.m0 <- lm(F3 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(f3.m0)); TukeyHSD(aov(f3.m0), which=c("vowel")); summary(f3.m0); 
+
+# F3 error:
+f3e.m0 <- lm(F3.error ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(f3e.m0)); TukeyHSD(aov(f3e.m0), which=c("vowel")); summary(f3e.m0); 
+
+# F4:
+f4.m0 <- lm(F4 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(f4.m0)); TukeyHSD(aov(f4.m0), which=c("vowel")); summary(f4.m0); 
+
+# F4 error:
+f4e.m0 <- lm(F4.error ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(f4e.m0)); TukeyHSD(aov(f4e.m0), which=c("vowel")); summary(f4e.m0); 
+
+# F5:
+f5.m0 <- lm(F5 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(f5.m0)); TukeyHSD(aov(f5.m0), which=c("vowel")); summary(f5.m0); 
+
+# F5 error:
+f5e.m0 <- lm(F5.error ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(f5e.m0)); TukeyHSD(aov(f5e.m0), which=c("vowel")); summary(f5e.m0); 
+
+# PC1:
+pc1.m0 <- lm(PC1 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(pc1.m0)); TukeyHSD(aov(pc1.m0), which=c("vowel")); summary(pc1.m0); 
+
+# PC2:
+pc2.m0 <- lm(PC2 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(pc2.m0)); TukeyHSD(aov(pc2.m0), which=c("vowel")); summary(pc2.m0); 
+
+# PC3:
+pc3.m0 <- lm(PC3 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 replication + generation, data=d); 
+summary(aov(pc3.m0)); TukeyHSD(aov(pc3.m0), which=c("vowel")); summary(pc3.m0); 
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tmp <- t(do.call(rbind, lapply(list("JA"=ja.m0, "LP"=lp.m0, "LD"=ld.m0, "TCX"=tcx.m0, "TCY"=tcy.m0, "TTX"=ttx.m0, "TTY"=tty.m0, "TBX"=tbx.m0, "TBY"=tby.m0, "hyoidX"=hx.m0, "hyoidY"=hy.m0, "PC1(art)"=pc1art.m0, "PC2(art)"=pc2art.m0, "PC3(art)"=pc3art.m0, "F1"=f1.m0, "F1.err"=f1e.m0, "F2"=f2.m0, "F2.err"=f2e.m0, "F3"=f3.m0, "F3.err"=f3e.m0, "F4"=f4.m0, "F4.err"=f4e.m0, "F5"=f5.m0, "F5.err"=f5e.m0, "PC1(all)"=pc1.m0, "PC2(all)"=pc2.m0, "PC3(all)"=pc3.m0), function(m) print.lm.coeffs.as.table(m) )));
+tmp <- cbind("DVs, interactions & R^2^"=rownames(tmp), tmp);
+knitr::kable(tmp, row.names=FALSE, align="r", caption="Summary of regressions of articulators on VT ratio with betas (for non-factor DVs and '.' for factors), *p*-values, and adjusted R^2^. Interactions are denoted by ':'.");
+```
+
+```{r echo=FALSE, message=FALSE}
+# For plotting, get rid of replication (ns anyway):
+ja.m0 <- lm(JA ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+lp.m0 <- lm(LP ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+ld.m0 <- lm(LD ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+tcx.m0 <- lm(TCX ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+tcy.m0 <- lm(TCY ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+ttx.m0 <- lm(TTX ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+tty.m0 <- lm(TTY ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+tbx.m0 <- lm(TBX ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+tby.m0 <- lm(TBY ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+hx.m0 <- lm(hyoidX ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+hy.m0 <- lm(hyoidY ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+pc1art.m0 <- lm(PC1.art ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+pc2art.m0 <- lm(PC2.art ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+pc3art.m0 <- lm(PC3.art ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+f1.m0 <- lm(F1 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+f1e.m0 <- lm(F1.error ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+f2.m0 <- lm(F2 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+f2e.m0 <- lm(F2.error ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+f3.m0 <- lm(F3 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+f3e.m0 <- lm(F3.error ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+f4.m0 <- lm(F4 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+f4e.m0 <- lm(F4.error ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+f5.m0 <- lm(F5 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+f5e.m0 <- lm(F5.error ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+pc1.m0 <- lm(PC1 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+pc2.m0 <- lm(PC2 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                 generation, data=d); 
+pc3.m0 <- lm(PC3 ~ LEN + I(LEN^2) + vowel + 
+                 (LEN : vowel) + (I(LEN^2) : vowel) + 
+                  generation, data=d); 
+artvtrat.data <- expand.grid("LEN"=sort(unique(d$LEN)), 
+                             "vowel"=levels(d$vowel),
+                             "generation"=seq(min(d$generation),max(d$generation),length.out=10));
+vtrat.ja.pred <- predict(ja.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.lp.pred <- predict(lp.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.ld.pred <- predict(ld.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.tcx.pred <- predict(tcx.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.tcy.pred <- predict(tcy.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.ttx.pred <- predict(ttx.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.tty.pred <- predict(tty.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.tbx.pred <- predict(tbx.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.tby.pred <- predict(tby.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.hx.pred <- predict(hx.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.hy.pred <- predict(hy.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.pc1art.pred <- predict(pc1art.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.pc2art.pred <- predict(pc2art.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.pc3art.pred <- predict(pc3art.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.f1.pred <- predict(f1.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.f1e.pred <- predict(f1e.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.f2.pred <- predict(f2.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.f2e.pred <- predict(f2e.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.f3.pred <- predict(f3.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.f3e.pred <- predict(f3e.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.f4.pred <- predict(f4.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.f4e.pred <- predict(f4e.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.f5.pred <- predict(f5.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.f5e.pred <- predict(f5e.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.pc1all.pred <- predict(pc1.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.pc2all.pred <- predict(pc2.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+vtrat.pc3all.pred <- predict(pc3.m0, artvtrat.data, se.fit=TRUE, interval="confidence");
+artvtrat.data <- rbind(cbind(artvtrat.data, "articulator"="JA", "values"=vtrat.ja.pred$fit[,"fit"], "CI95.lwr"=vtrat.ja.pred$fit[,"lwr"], "CI95.upr"=vtrat.ja.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="LP", "values"=vtrat.lp.pred$fit[,"fit"], "CI95.lwr"=vtrat.lp.pred$fit[,"lwr"], "CI95.upr"=vtrat.lp.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="LD", "values"=vtrat.ld.pred$fit[,"fit"], "CI95.lwr"=vtrat.ld.pred$fit[,"lwr"], "CI95.upr"=vtrat.ld.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="TCX", "values"=vtrat.tcx.pred$fit[,"fit"], "CI95.lwr"=vtrat.tcx.pred$fit[,"lwr"], "CI95.upr"=vtrat.tcx.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="TCY", "values"=vtrat.tcy.pred$fit[,"fit"], "CI95.lwr"=vtrat.tcy.pred$fit[,"lwr"], "CI95.upr"=vtrat.tcy.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="TTX", "values"=vtrat.ttx.pred$fit[,"fit"], "CI95.lwr"=vtrat.ttx.pred$fit[,"lwr"], "CI95.upr"=vtrat.ttx.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="TTY", "values"=vtrat.tty.pred$fit[,"fit"], "CI95.lwr"=vtrat.tty.pred$fit[,"lwr"], "CI95.upr"=vtrat.tty.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="TBX", "values"=vtrat.tbx.pred$fit[,"fit"], "CI95.lwr"=vtrat.tbx.pred$fit[,"lwr"], "CI95.upr"=vtrat.tbx.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="TBY", "values"=vtrat.tby.pred$fit[,"fit"], "CI95.lwr"=vtrat.tby.pred$fit[,"lwr"], "CI95.upr"=vtrat.tby.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="hyoidX", "values"=vtrat.hx.pred$fit[,"fit"], "CI95.lwr"=vtrat.hx.pred$fit[,"lwr"], "CI95.upr"=vtrat.hx.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="hyoidY", "values"=vtrat.hy.pred$fit[,"fit"], "CI95.lwr"=vtrat.hy.pred$fit[,"lwr"], "CI95.upr"=vtrat.hy.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="PC1(art)", "values"=vtrat.pc1art.pred$fit[,"fit"], "CI95.lwr"=vtrat.pc1art.pred$fit[,"lwr"], "CI95.upr"=vtrat.pc1art.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="PC2(art)", "values"=vtrat.pc2art.pred$fit[,"fit"], "CI95.lwr"=vtrat.pc2art.pred$fit[,"lwr"], "CI95.upr"=vtrat.pc2art.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="PC3(art)", "values"=vtrat.pc3art.pred$fit[,"fit"], "CI95.lwr"=vtrat.pc3art.pred$fit[,"lwr"], "CI95.upr"=vtrat.pc3art.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="F1", "values"=vtrat.f1.pred$fit[,"fit"], "CI95.lwr"=vtrat.f1.pred$fit[,"lwr"], "CI95.upr"=vtrat.f1.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="F1(error)", "values"=vtrat.f1e.pred$fit[,"fit"], "CI95.lwr"=vtrat.f1e.pred$fit[,"lwr"], "CI95.upr"=vtrat.f1e.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="F2", "values"=vtrat.f2.pred$fit[,"fit"], "CI95.lwr"=vtrat.f2.pred$fit[,"lwr"], "CI95.upr"=vtrat.f2.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="F2(error)", "values"=vtrat.f2e.pred$fit[,"fit"], "CI95.lwr"=vtrat.f2e.pred$fit[,"lwr"], "CI95.upr"=vtrat.f2e.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="F3", "values"=vtrat.f3.pred$fit[,"fit"], "CI95.lwr"=vtrat.f3.pred$fit[,"lwr"], "CI95.upr"=vtrat.f3.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="F3(error)", "values"=vtrat.f3e.pred$fit[,"fit"], "CI95.lwr"=vtrat.f3e.pred$fit[,"lwr"], "CI95.upr"=vtrat.f3e.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="F4", "values"=vtrat.f4.pred$fit[,"fit"], "CI95.lwr"=vtrat.f4.pred$fit[,"lwr"], "CI95.upr"=vtrat.f4.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="F4(error)", "values"=vtrat.f4e.pred$fit[,"fit"], "CI95.lwr"=vtrat.f4e.pred$fit[,"lwr"], "CI95.upr"=vtrat.f4e.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="F5", "values"=vtrat.f5.pred$fit[,"fit"], "CI95.lwr"=vtrat.f5.pred$fit[,"lwr"], "CI95.upr"=vtrat.f5.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="F5(error)", "values"=vtrat.f5e.pred$fit[,"fit"], "CI95.lwr"=vtrat.f5e.pred$fit[,"lwr"], "CI95.upr"=vtrat.f5e.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="PC1(all)", "values"=vtrat.pc1all.pred$fit[,"fit"], "CI95.lwr"=vtrat.pc1all.pred$fit[,"lwr"], "CI95.upr"=vtrat.pc1all.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="PC2(all)", "values"=vtrat.pc2all.pred$fit[,"fit"], "CI95.lwr"=vtrat.pc2all.pred$fit[,"lwr"], "CI95.upr"=vtrat.pc2all.pred$fit[,"upr"]),
+                       cbind(artvtrat.data, "articulator"="PC3(all)", "values"=vtrat.pc3all.pred$fit[,"fit"], "CI95.lwr"=vtrat.pc3all.pred$fit[,"lwr"], "CI95.upr"=vtrat.pc3all.pred$fit[,"upr"]));
+artvtrat.data$vowel   <- factor(artvtrat.data$vowel, levels=levels(d$vowel));
+levels(artvtrat.data$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]");
+```
+
+```{r plot articulators on LEN, echo=FALSE, message=FALSE, fig.width=2*5+2, fig.height=2*5, fig.cap="Regression of articulators on LEN, vowel and generation for mobile hyoid (with 95%CI)."}
+# Split it in several plots for inclusion in the paper/thesis:
+ggplot(artvtrat.data[ artvtrat.data$articulator %in% c("JA", "LP", "LD", "TCX", "TCY"), ] , aes(x=LEN, y=values, color=generation)) + 
+  geom_point() + geom_smooth(method="loess", color="red", se=TRUE) +
+  facet_grid(articulator ~ vowel, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+
+```{r plot articulators on LEN (part 2), echo=FALSE, message=FALSE, fig.width=2*5+2, fig.height=2*6, fig.cap="Regression of articulators on LEN, vowel and generation for mobile hyoid (with 95%CI)."}
+# Split it in several plots for inclusion in the paper/thesis:
+ggplot(artvtrat.data[ artvtrat.data$articulator %in% c("TTX", "TTY", "TBX", "TBY", "hyoidX", "hyoidY"), ] , aes(x=LEN, y=values, color=generation)) + 
+  geom_point() + geom_smooth(method="loess", color="red", se=TRUE) +
+  facet_grid(articulator ~ vowel, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+
+```{r plot formants on LEN, echo=FALSE, message=FALSE, fig.width=2*5+2, fig.height=2*10, fig.cap="Regression of formants on LEN, vowel and generation for mobile hyoid (with 95%CI)."}
+# Split it in several plots for inclusion in the paper/thesis:
+ggplot(artvtrat.data[ artvtrat.data$articulator %in% c("F1", "F1(error)", "F2", "F2(error)", "F3", "F3(error)", "F4", "F4(error)", "F5", "F5(error)"), ] , aes(x=LEN, y=values, color=generation)) + 
+  geom_point() + geom_smooth(method="loess", color="red", se=TRUE) +
+  facet_grid(articulator ~ vowel, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+
+```{r plot PCs on LEN, echo=FALSE, message=FALSE, fig.width=2*5+2, fig.height=2*6, fig.cap="Regression of PCs on LEN, vowel and generation for mobile hyoid (with 95%CI)."}
+# Split it in several plots for inclusion in the paper/thesis:
+ggplot(artvtrat.data[ artvtrat.data$articulator %in% c("PC1(art)", "PC2(art)", "PC3(art)", "PC1(all)", "PC2(all)", "PC3(all)"), ] , aes(x=LEN, y=values, color=generation)) + 
+  geom_point() + geom_smooth(method="loess", color="red", se=TRUE) +
+  facet_grid(articulator ~ vowel, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+
+
+```{r plot articulators in VTRatio (raw data) for paper, echo=FALSE, message=FALSE, fig.width=2*5+2, fig.height=11*1.0, fig.cap="Articulators vs VTRatio (raw data)."}
+d <- results[ results$fixed.hyoid==FALSE, c("LEN", "vowel", "replication", "HX_elite", "HY_elite", "JA_elite", "LP_elite", "LD_elite", "TCX_elite", "TCY_elite", "TTX_elite", "TTY_elite", "TBX_elite", "TBY_elite", "VTRatio_elite") ];
+names(d) <- c("LEN", "vowel", "replication", "HX", "HY", "JA", "LP", "LD", "TCX", "TCY", "TTX", "TTY", "TBX", "TBY", "VTRatio");
+d1 <- melt(d, id.vars=c("LEN", "VTRatio", "vowel", "replication"), variable.name="articulator");
+d1$vowel <- factor(d1$vowel, levels=c("schwa", "a", "ae", "i", "u" ));
+levels(d1$vowel) <- c("[ə]", "[ɑ]", "[æ]", "[i]", "[u]");
+d1$articulator <- factor(d1$articulator, levels=c("HX", "HY", "JA", "TCX", "TCY", "TBX", "TBY", "TTX", "TTY", "LP", "LD"));
+ggplot(d1, aes(x=VTRatio, y=value, color=LEN)) + 
+  xlab("VTRatio") + ylab("Articulatory parameter value") +
+  geom_point(alpha=0.5, size=1.0) + geom_smooth(method="loess", color="red", se=TRUE) +
+  #geom_vline(aes(xintercept=VTRatio), data=int.coords, linetype="dotted", color="black") + 
+  facet_grid(articulator ~ vowel, scales="free_y") + 
+  theme(axis.text.x=element_text(angle=90,hjust=1));
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
