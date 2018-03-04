@@ -1,0 +1,653 @@
+<speaker>
+  <vocal_tract_model>
+    <anatomy>
+      <palate>
+        <p0 bottom_teeth_width="1.0500" palate_angle_deg="39.5000" palate_height="1.3000" teeth_height="0.5000" top_teeth_width="1.0500" x="0.2000" z="-2.3000" />
+        <p1 bottom_teeth_width="1.0500" palate_angle_deg="39.5000" palate_height="1.1500" teeth_height="0.5000" top_teeth_width="1.0500" x="0.9000" z="-2.2000" />
+        <p2 bottom_teeth_width="1.0000" palate_angle_deg="60.8000" palate_height="1.4250" teeth_height="0.5000" top_teeth_width="1.0000" x="1.8000" z="-2.0000" />
+        <p3 bottom_teeth_width="1.0000" palate_angle_deg="60.8000" palate_height="1.6000" teeth_height="0.5000" top_teeth_width="1.0000" x="2.8000" z="-1.8000" />
+        <p4 bottom_teeth_width="0.8000" palate_angle_deg="60.8000" palate_height="1.4000" teeth_height="0.6000" top_teeth_width="0.8000" x="3.5000" z="-1.6000" />
+        <p5 bottom_teeth_width="0.7000" palate_angle_deg="38.0000" palate_height="0.7000" teeth_height="0.7000" top_teeth_width="0.7000" x="4.1500" z="-1.4000" />
+        <p6 bottom_teeth_width="0.3000" palate_angle_deg="23.4000" palate_height="0.1500" teeth_height="0.8000" top_teeth_width="0.6500" x="4.5500" z="-1.1000" />
+        <p7 bottom_teeth_width="0.2000" palate_angle_deg="0.0000" palate_height="0.0000" teeth_height="0.8000" top_teeth_width="0.8000" x="4.7000" z="-0.6000" />
+        <p8 bottom_teeth_width="0.2000" palate_angle_deg="0.0000" palate_height="0.0000" teeth_height="0.8000" top_teeth_width="0.8500" x="4.7000" z="0.0000" />
+      </palate>
+      <jaw fulcrum_x="-6.5000" fulcrum_y="2.0000" rest_pos_x="0.0000" rest_pos_y="-1.2000" tooth_root_length="0.8000">
+        <p0 bottom_teeth_width="1.0500" jaw_angle_deg="69.5000" jaw_height="1.5000" teeth_height="0.5000" top_teeth_width="1.0500" x="0.2000" z="-2.3000" />
+        <p1 bottom_teeth_width="1.1000" jaw_angle_deg="69.5000" jaw_height="1.5000" teeth_height="0.5000" top_teeth_width="1.1000" x="1.2000" z="-2.2000" />
+        <p2 bottom_teeth_width="1.0500" jaw_angle_deg="69.5000" jaw_height="1.5000" teeth_height="0.5000" top_teeth_width="1.0500" x="2.2000" z="-1.9000" />
+        <p3 bottom_teeth_width="0.9000" jaw_angle_deg="69.5000" jaw_height="1.5000" teeth_height="0.5000" top_teeth_width="0.9000" x="3.2000" z="-1.6000" />
+        <p4 bottom_teeth_width="0.7500" jaw_angle_deg="42.2000" jaw_height="1.0000" teeth_height="0.5000" top_teeth_width="0.7500" x="3.9000" z="-1.4000" />
+        <p5 bottom_teeth_width="0.7000" jaw_angle_deg="35.8000" jaw_height="0.4000" teeth_height="0.5500" top_teeth_width="0.6000" x="4.3000" z="-1.1000" />
+        <p6 bottom_teeth_width="0.8000" jaw_angle_deg="31.4000" jaw_height="0.1300" teeth_height="0.6000" top_teeth_width="0.3000" x="4.5000" z="-0.7000" />
+        <p7 bottom_teeth_width="0.9000" jaw_angle_deg="0.0000" jaw_height="0.0000" teeth_height="0.7000" top_teeth_width="0.2000" x="4.5500" z="-0.5000" />
+        <p8 bottom_teeth_width="0.9000" jaw_angle_deg="0.0000" jaw_height="0.0000" teeth_height="0.7000" top_teeth_width="0.2000" x="4.5500" z="0.0000" />
+      </jaw>
+      <lips width="1.3000" />
+      <tongue>
+        <tip radius="0.2000" />
+        <body radius_x="1.8000" radius_y="1.8000" />
+        <root automatic_calc="1" trx_intercept="-5.1100" trx_slope="0.9380" try_intercept="-3.0300" try_slope="0.8310" />
+      </tongue>
+      <velum max_nasal_port_area="2.0000" uvula_depth="0.7000" uvula_height="0.9000" uvula_width="0.7000">
+        <low points="-1.25 -0.7 -1 -0.3 -0.7 0 -0.3 0.35 0 0.55 " />
+        <mid points="-1.75 0 -1.55 0.3 -1.15 0.5 -0.6 0.7 0 0.87 " />
+        <high points="-1.75 0.5 -1.5 0.95 -1.1 1.2 -0.6 1.25 0 1.3 " />
+      </velum>
+      <pharynx back_side_width="1.5000" fulcrum_x="-2.3720" fulcrum_y="1.2140" lower_depth="3.4000" rotation_angle_deg="-98.0000" top_rib_y="-1.4000" upper_depth="3.8000" />
+      <larynx epiglottis_angle_deg="100.0000" epiglottis_depth="1.4000" epiglottis_height="1.6000" epiglottis_width="0.5000" lower_depth="1.0000" upper_depth="1.0000">
+        <narrow points="1.8 0 1.05 -0.2 1.55 -1.2 2.68 -3.2 1.48 -3.2 1.1 -1.2 0 -1 0 0 " />
+        <wide points="3.3 0 2.13 -0.2 1.9 -1.2 2.68 -3.2 1.48 -3.2 1.45 -1.2 0 -1 0 0 " />
+      </larynx>
+      <subglottal_cavity length="23.0000" />
+      <nasal_cavity length="11.4000" />
+      <param index="0" max="1.0" min="0.0" name="HX" neutral="1.0" />
+      <param index="1" max="-3.5" min="-6.0" name="HY" neutral="-4.75" />
+      <param index="2" max="0.0" min="-0.5" name="JX" neutral="0" />
+      <param index="3" max="0.0" min="-7.0" name="JA" neutral="-2.0" />
+      <param index="4" max="1.0" min="-1.0" name="LP" neutral="-0.07" />
+      <param index="5" max="4.0" min="-2.0" name="LD" neutral="0.95\" />
+      <param index="6" max="1.0" min="0.0" name="VS" neutral="0.5" />
+      <param index="7" max="1.0" min="-0.1" name="VO" neutral="-0.1" />
+      <param index="8" max="1.0" min="0.0" name="WC" neutral="0" />
+      <param index="9" max="4.0" min="-3.0" name="TCX" neutral="-0.4\" />
+      <param index="10" max="1.0" min="-3.0" name="TCY" neutral="-1.46\" />
+      <param index="11" max="5.5" min="1.5" name="TTX" neutral="3.5\" />
+      <param index="12" max="2.5" min="-3.0" name="TTY" neutral="-1.0\" />
+      <param index="13" max="4.0" min="-3.0" name="TBX" neutral="2.0\" />
+      <param index="14" max="5.0" min="-3.0" name="TBY" neutral="0.5\" />
+      <param index="15" max="2.0" min="-4.0" name="TRX" neutral="0.0\" />  
+      <param index="16" max="0.0" min="-6.0" name="TRY" neutral="0.0\" />  
+      <param index="17" max="1.4" min="-1.4" name="TS1" neutral="0" />
+      <param index="18" max="1.4" min="-1.4" name="TS2" neutral="0" />
+      <param index="19" max="1.4" min="-1.4" name="TS3" neutral="0" />
+      <param index="20" max="1.4" min="-1.4" name="TS4" neutral="0" />
+      <param index="21" max="0.3" min="-0.05" name="MA1" neutral="-0.05" />
+      <param index="22" max="0.3" min="-0.05" name="MA2" neutral="-0.05" />
+      <param index="23" max="0.3" min="-0.05" name="MA3" neutral="-0.05" />
+      <param index="24" max="3.0" min="1.0" name="HPZ" neutral="2.3" />
+      <param index="25" max="5.0" min="3.0" name="HPX" neutral="4.7" />
+      <param index="26" max="8.0" min="2.0" name="HPC" neutral="3.5" />
+      <param index="27" max="3.0" min="1.0" name="JAZ" neutral="2.3" />
+      <param index="28" max="5.0" min="3.2" name="JAX" neutral="4.9" />
+      <param index="29" max="8.0" min="2.0" name="JAC" neutral="3.5" />
+      <param index="30" max="9.0" min="0.0" name="HPA" neutral="3" />
+      <param index="31" max="1.0" min="0.0" name="PAF" neutral="0.726758" />
+      <param index="32" max="1.0" min="0.0" name="PAC" neutral="0.343016" />
+      <param index="33" max="1.0" min="0.0" name="PAA" neutral="0.200746" />
+      <param index="34" max="1.0" min="0.0" name="PAW" neutral="0.653359" />
+      <param index="36" max="-6.45" min="-9.45" name="LEN" neutral="-7.95" />
+    </anatomy>
+    <shapes>
+      <shape name="i">
+        <param domi="100.0" name="HX" value="1" />
+        <param domi="100.0" name="HY" value="-4.67909" />
+        <param domi="100.0" name="JA" value="-0.97958" />
+        <param domi="100.0" name="LP" value="-0.548442" />
+        <param domi="100.0" name="LD" value="0.281444" />
+        <param domi="100.0" name="TCX" value="2.20395" />
+        <param domi="100.0" name="TCY" value="-0.711257" />
+        <param domi="100.0" name="TTX" value="4.42325" />
+        <param domi="100.0" name="TTY" value="-1.1652" />
+        <param domi="100.0" name="TBX" value="3.76754" />
+        <param domi="100.0" name="TBY" value="0.272148" />
+      </shape>
+      <shape name="I">
+        <param domi="100.0" name="HX" value="0.293142" />
+        <param domi="100.0" name="HY" value="-4.17471" />
+        <param domi="100.0" name="JA" value="-1.48461" />
+        <param domi="100.0" name="LP" value="-0.548442" />
+        <param domi="100.0" name="LD" value="0.281444" />
+        <param domi="100.0" name="TCX" value="1.69956" />
+        <param domi="100.0" name="TCY" value="-1.36696" />
+        <param domi="100.0" name="TTX" value="3.64985" />
+        <param domi="100.0" name="TTY" value="-0.946637" />
+        <param domi="100.0" name="TBX" value="3.69956" />
+        <param domi="100.0" name="TBY" value="-0.25731" />
+      </shape>
+      <shape name="y">
+        <param domi="100.0" name="HX" value="1" />
+        <param domi="100.0" name="HY" value="-4.47734" />
+        <param domi="100.0" name="JA" value="-1.03019" />
+        <param domi="100.0" name="LP" value="0.980548" />
+        <param domi="100.0" name="LD" value="0.122597" />
+        <param domi="100.0" name="TCX" value="2.20395" />
+        <param domi="100.0" name="TCY" value="-0.711257" />
+        <param domi="100.0" name="TTX" value="4.42325" />
+        <param domi="100.0" name="TTY" value="-1.1652" />
+        <param domi="100.0" name="TBX" value="3.76754" />
+        <param domi="100.0" name="TBY" value="0.272148" />
+      </shape>
+      <shape name="Y">
+        <param domi="100.0" name="HX" value="0.293142" />
+        <param domi="100.0" name="HY" value="-4.17471" />
+        <param domi="100.0" name="JA" value="-1.48461" />
+        <param domi="100.0" name="LP" value="0.45689" />
+        <param domi="100.0" name="LD" value="0.111235" />
+        <param domi="100.0" name="TCX" value="1.69956" />
+        <param domi="100.0" name="TCY" value="-1.36696" />
+        <param domi="100.0" name="TTX" value="3.70029" />
+        <param domi="100.0" name="TTY" value="-0.946637" />
+        <param domi="100.0" name="TBX" value="3.70029" />
+        <param domi="100.0" name="TBY" value="-0.290936" />
+      </shape>
+      <shape name="e">
+        <param domi="100.0" name="HX" value="0.8958" />
+        <param domi="100.0" name="HY" value="-3.78801" />
+        <param domi="100.0" name="JA" value="-2.88614" />
+        <param domi="100.0" name="LP" value="-0.548442" />
+        <param domi="100.0" name="LD" value="0.497186" />
+        <param domi="100.0" name="TCX" value="1.49781" />
+        <param domi="100.0" name="TCY" value="-0.879386" />
+        <param domi="100.0" name="TTX" value="3.38085" />
+        <param domi="100.0" name="TTY" value="-1.11477" />
+        <param domi="100.0" name="TBX" value="3.43129" />
+        <param domi="100.0" name="TBY" value="0.0453216" />
+      </shape>
+      <shape name="E">
+        <param domi="100.0" name="HX" value="0.412074" />
+        <param domi="100.0" name="HY" value="-3.88889" />
+        <param domi="100.0" name="JA" value="-2.88614" />
+        <param domi="100.0" name="LP" value="-0.548442" />
+        <param domi="100.0" name="LD" value="0.665315" />
+        <param domi="100.0" name="TCX" value="1.34649" />
+        <param domi="100.0" name="TCY" value="-1.50146" />
+        <param domi="100.0" name="TTX" value="3.81798" />
+        <param domi="100.0" name="TTY" value="-1.33333" />
+        <param domi="100.0" name="TBX" value="3.27997" />
+        <param domi="100.0" name="TBY" value="0.263889" />
+      </shape>
+      <shape name="oe">
+        <param domi="100.0" name="HX" value="0.8958" />
+        <param domi="100.0" name="HY" value="-3.78801" />
+        <param domi="100.0" name="JA" value="-2.88614" />
+        <param domi="100.0" name="LP" value="0.268533" />
+        <param domi="100.0" name="LD" value="0.272364" />
+        <param domi="100.0" name="TCX" value="1.49781" />
+        <param domi="100.0" name="TCY" value="-0.879386" />
+        <param domi="100.0" name="TTX" value="3.38085" />
+        <param domi="100.0" name="TTY" value="-1.11477" />
+        <param domi="100.0" name="TBX" value="3.43129" />
+        <param domi="100.0" name="TBY" value="0.0453216" />
+      </shape>
+      <shape name="OE">
+        <param domi="100.0" name="HX" value="0.412074" />
+        <param domi="100.0" name="HY" value="-3.88889" />
+        <param domi="100.0" name="JA" value="-2.88614" />
+        <param domi="100.0" name="LP" value="0.7824" />
+        <param domi="100.0" name="LD" value="0.714523" />
+        <param domi="100.0" name="TCX" value="1.34649" />
+        <param domi="100.0" name="TCY" value="-1.50146" />
+        <param domi="100.0" name="TTX" value="3.81798" />
+        <param domi="100.0" name="TTY" value="-1.33333" />
+        <param domi="100.0" name="TBX" value="3.3136" />
+        <param domi="100.0" name="TBY" value="-0.442251" />
+      </shape>
+      <shape name="ae">
+        <param domi="100.0" name="HX" value="0.338712" />
+        <param domi="100.0" name="HY" value="-3.55263" />
+        <param domi="100.0" name="JA" value="-7" />
+        <param domi="100.0" name="LP" value="0.464261" />
+        <param domi="100.0" name="LD" value="2.54437" />
+        <param domi="100.0" name="TCX" value="1.06067" />
+        <param domi="100.0" name="TCY" value="-2.05629" />
+        <param domi="100.0" name="TTX" value="3.81798" />
+        <param domi="100.0" name="TTY" value="-1.75365" />
+        <param domi="100.0" name="TBX" value="2.82602" />
+        <param domi="100.0" name="TBY" value="-0.828947" />
+      </shape>
+      <shape name="u">
+        <param domi="100.0" name="HX" value="1" />
+        <param domi="100.0" name="HY" value="-5.70468" />
+        <param domi="100.0" name="JA" value="-4.56624" />
+        <param domi="100.0" name="LP" value="1" />
+        <param domi="100.0" name="LD" value="0.135107" />
+        <param domi="100.0" name="TCX" value="-0.502924" />
+        <param domi="100.0" name="TCY" value="-1.31652" />
+        <param domi="100.0" name="TTX" value="1.86769" />
+        <param domi="100.0" name="TTY" value="-0.408626" />
+        <param domi="100.0" name="TBX" value="1.39693" />
+        <param domi="100.0" name="TBY" value="0.462826" />
+      </shape>
+      <shape name="U">
+        <param domi="100.0" name="HX" value="1" />
+        <param domi="100.0" name="HY" value="-4.59503" />
+        <param domi="100.0" name="JA" value="-2.92452" />
+        <param domi="100.0" name="LP" value="0.528148" />
+        <param domi="100.0" name="LD" value="0.342804" />
+        <param domi="100.0" name="TCX" value="-0.133041" />
+        <param domi="100.0" name="TCY" value="-1.28289" />
+        <param domi="100.0" name="TTX" value="2.48977" />
+        <param domi="100.0" name="TTY" value="-1.36696" />
+        <param domi="100.0" name="TBX" value="1.98538" />
+        <param domi="100.0" name="TBY" value="-0.215425" />
+      </shape>
+      <shape name="o">
+        <param domi="100.0" name="HX" value="0.484355" />
+        <param domi="100.0" name="HY" value="-4.79678" />
+        <param domi="100.0" name="JA" value="-3.44047" />
+        <param domi="100.0" name="LP" value="0.879017" />
+        <param domi="100.0" name="LD" value="0.303481" />
+        <param domi="100.0" name="TCX" value="-0.755117" />
+        <param domi="100.0" name="TCY" value="-1.66959" />
+        <param domi="100.0" name="TTX" value="1.90132" />
+        <param domi="100.0" name="TTY" value="-1.48465" />
+        <param domi="100.0" name="TBX" value="0.623538" />
+        <param domi="100.0" name="TBY" value="0.314327" />
+      </shape>
+      <shape name="O">
+        <param domi="100.0" name="HX" value="0.484355" />
+        <param domi="100.0" name="HY" value="-4.79678" />
+        <param domi="100.0" name="JA" value="-3.44047" />
+        <param domi="100.0" name="LP" value="0.685585" />
+        <param domi="100.0" name="LD" value="1.48038" />
+        <param domi="100.0" name="TCX" value="-0.788743" />
+        <param domi="100.0" name="TCY" value="-1.9386" />
+        <param domi="100.0" name="TTX" value="1.90132" />
+        <param domi="100.0" name="TTY" value="-1.48465" />
+        <param domi="100.0" name="TBX" value="0.707602" />
+        <param domi="100.0" name="TBY" value="-0.105994" />
+      </shape>
+      <shape name="a">
+        <param domi="100.0" name="HX" value="0.133738" />
+        <param domi="100.0" name="HY" value="-4.74635" />
+        <param domi="100.0" name="JA" value="-6.72855" />
+        <param domi="100.0" name="LP" value="0.224668" />
+        <param domi="100.0" name="LD" value="2.47503" />
+        <param domi="100.0" name="TCX" value="-0.77193" />
+        <param domi="100.0" name="TCY" value="-2.52705" />
+        <param domi="100.0" name="TTX" value="2.17032" />
+        <param domi="100.0" name="TTY" value="-2.15716" />
+        <param domi="100.0" name="TBX" value="1.01023" />
+        <param domi="100.0" name="TBY" value="-1.28289" />
+      </shape>
+      <shape name="i-">
+        <param domi="100.0" name="HX" value="0.913492" />
+        <param domi="100.0" name="HY" value="-3.72076" />
+        <param domi="100.0" name="JA" value="-1.48077" />
+        <param domi="100.0" name="LP" value="0.242762" />
+        <param domi="100.0" name="LD" value="1.26209" />
+        <param domi="100.0" name="TCX" value="0.774854" />
+        <param domi="100.0" name="TCY" value="-0.96345" />
+        <param domi="100.0" name="TTX" value="2.72515" />
+        <param domi="100.0" name="TTY" value="-0.946637" />
+        <param domi="100.0" name="TBX" value="2.15351" />
+        <param domi="100.0" name="TBY" value="0.793346" />
+      </shape>
+      <shape name="schwa">
+        <param domi="100.0" name="HX" value="0.992982" />
+        <param domi="100.0" name="HY" value="-4.14108" />
+        <param domi="100.0" name="JA" value="-1.93409" />
+        <param domi="100.0" name="LP" value="0.242762" />
+        <param domi="100.0" name="LD" value="1.66295" />
+        <param domi="100.0" name="TCX" value="0.236842" />
+        <param domi="100.0" name="TCY" value="-1.33333" />
+        <param domi="100.0" name="TTX" value="2.60746" />
+        <param domi="100.0" name="TTY" value="-1.70322" />
+        <param domi="100.0" name="TBX" value="2.00219" />
+        <param domi="100.0" name="TBY" value="-0.475877" />
+      </shape>
+      <shape name="er">
+        <param domi="100.0" name="HX" value="0.84006" />
+        <param domi="100.0" name="HY" value="-4.62865" />
+        <param domi="100.0" name="JA" value="-2.07149" />
+        <param domi="100.0" name="LP" value="0.363426" />
+        <param domi="100.0" name="LD" value="0.546444" />
+        <param domi="100.0" name="TCX" value="-0.671053" />
+        <param domi="100.0" name="TCY" value="-2.27485" />
+        <param domi="100.0" name="TTX" value="2.7924" />
+        <param domi="100.0" name="TTY" value="-0.593567" />
+        <param domi="100.0" name="TBX" value="1.46418" />
+        <param domi="100.0" name="TBY" value="1.96199" />
+      </shape>
+      <shape name="r">
+        <param domi="100.0" name="HX" value="0.0361934" />
+        <param domi="100.0" name="HY" value="-4.66228" />
+        <param domi="100.0" name="JA" value="-2.07149" />
+        <param domi="100.0" name="LP" value="0.241554" />
+        <param domi="100.0" name="LD" value="0.514849" />
+        <param domi="100.0" name="TCX" value="-0.41886" />
+        <param domi="100.0" name="TCY" value="-2.88012" />
+        <param domi="100.0" name="TTX" value="1.5" />
+        <param domi="100.0" name="TTY" value="1.00365" />
+        <param domi="100.0" name="TBX" value="0.556287" />
+        <param domi="100.0" name="TBY" value="0.342943" />
+      </shape>
+    </shapes>
+  </vocal_tract_model>
+  <glottis_models>
+    <glottis_model selected="0" type="Titze">
+      <static_params>
+        <param abbr="rest_thickness" default="0.004500" index="0" max="0.010000" min="0.003000" name="Cord rest thickness" unit="m" value="0.004500" />
+        <param abbr="rest_length" default="0.016000" index="1" max="0.020000" min="0.005000" name="Cord rest length" unit="m" value="0.016000" />
+        <param abbr="chink_length" default="0.002000" index="2" max="0.005000" min="0.001000" name="Chink length" unit="m" value="0.002000" />
+      </static_params>
+      <control_params>
+        <param abbr="f0" default="120.000000" index="0" max="600.000000" min="40.000000" name="f0" unit="Hz" value="120.000000" />
+        <param abbr="pressure" default="800.000000" index="1" max="2000.000000" min="0.000000" name="Subglottal pressure" unit="Pa" value="800.000000" />
+        <param abbr="x_bottom" default="0.000300" index="2" max="0.003000" min="-0.000500" name="Lower displacement" unit="m" value="0.000053" />
+        <param abbr="x_top" default="0.000300" index="3" max="0.003000" min="-0.000500" name="Upper displacement" unit="m" value="0.000000" />
+        <param abbr="ary_area" default="0.000000" index="4" max="0.000025" min="-0.000025" name="Extra arytenoid area" unit="m^2" value="-0.000025" />
+        <param abbr="lag" default="0.880000" index="5" max="3.141500" min="0.000000" name="Phase lag" unit="rad" value="0.885903" />
+        <param abbr="aspiration_strength" default="-40.000000" index="6" max="0.000000" min="-40.000000" name="Aspiration strength" unit="dB" value="-40.000000" />
+      </control_params>
+      <shapes>
+        <shape name="default">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="800.000000" />
+          <control_param index="2" value="0.000300" />
+          <control_param index="3" value="0.000300" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="0.880000" />
+          <control_param index="6" value="-35.000000" />
+        </shape>
+        <shape name="open">
+          <control_param index="0" value="97.404109" />
+          <control_param index="1" value="995.117094" />
+          <control_param index="2" value="0.001498" />
+          <control_param index="3" value="0.001498" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="0.880000" />
+          <control_param index="6" value="0.000000" />
+        </shape>
+        <shape name="modal">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="800.000000" />
+          <control_param index="2" value="0.000151" />
+          <control_param index="3" value="0.000095" />
+          <control_param index="4" value="-0.000025" />
+          <control_param index="5" value="0.885903" />
+          <control_param index="6" value="-40.000000" />
+        </shape>
+        <shape name="breathy">
+          <control_param index="0" value="105.104613" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="0.000445" />
+          <control_param index="3" value="0.000396" />
+          <control_param index="4" value="-0.000025" />
+          <control_param index="5" value="0.885903" />
+          <control_param index="6" value="0.000000" />
+        </shape>
+        <shape name="pressed">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="800.000000" />
+          <control_param index="2" value="-0.000052" />
+          <control_param index="3" value="-0.000101" />
+          <control_param index="4" value="-0.000025" />
+          <control_param index="5" value="0.885903" />
+          <control_param index="6" value="-40.000000" />
+        </shape>
+        <shape name="stop">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="800.000000" />
+          <control_param index="2" value="-0.000300" />
+          <control_param index="3" value="-0.000300" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="0.885903" />
+          <control_param index="6" value="-35.000000" />
+        </shape>
+        <shape name="slightly-breathy">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="800.000000" />
+          <control_param index="2" value="0.000302" />
+          <control_param index="3" value="0.000245" />
+          <control_param index="4" value="-0.000025" />
+          <control_param index="5" value="0.885903" />
+          <control_param index="6" value="-20.000000" />
+        </shape>
+        <shape name="slightly-pressed">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="800.000000" />
+          <control_param index="2" value="0.000053" />
+          <control_param index="3" value="0.000000" />
+          <control_param index="4" value="-0.000025" />
+          <control_param index="5" value="0.885903" />
+          <control_param index="6" value="-40.000000" />
+        </shape>
+        <shape name="fully-open">
+          <control_param index="0" value="97.404109" />
+          <control_param index="1" value="995.117094" />
+          <control_param index="2" value="0.002503" />
+          <control_param index="3" value="0.002496" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="0.880000" />
+          <control_param index="6" value="0.000000" />
+        </shape>
+      </shapes>
+    </glottis_model>
+    <glottis_model selected="0" type="Two-mass model">
+      <static_params>
+        <param abbr="cord_length" default="0.013000" index="0" max="0.020000" min="0.005000" name="Cord length" unit="m" value="0.013000" />
+        <param abbr="lower_rest_thickness" default="0.002500" index="1" max="0.005000" min="0.001000" name="L. rest thickness" unit="m" value="0.002500" />
+        <param abbr="upper_rest_thickness" default="0.000500" index="2" max="0.002000" min="0.000100" name="U. rest thickness" unit="m" value="0.000500" />
+        <param abbr="lower_rest_mass" default="0.000125" index="3" max="0.000200" min="0.000010" name="L. rest mass" unit="kg" value="0.000125" />
+        <param abbr="upper_rest_mass" default="0.000025" index="4" max="0.000200" min="0.000010" name="U. rest mass" unit="kg" value="0.000025" />
+        <param abbr="lower_damping_ratio" default="0.100000" index="5" max="3.000000" min="0.000000" name="L. damping ratio" unit="" value="0.100000" />
+        <param abbr="upper_damping_ratio" default="0.600000" index="6" max="3.000000" min="0.000000" name="U. damping ratio" unit="" value="0.600000" />
+        <param abbr="lower_spring_k" default="80.000000" index="7" max="400.000000" min="0.000000" name="L. spring k" unit="N/m" value="80.000000" />
+        <param abbr="upper_spring_k" default="8.000000" index="8" max="400.000000" min="0.000000" name="U. spring k" unit="N/m" value="8.000000" />
+        <param abbr="lower_spring_eta" default="1000000.000000" index="9" max="10000000.000000" min="0.000000" name="L. spring eta" unit="1/m^2" value="1000000.000000" />
+        <param abbr="upper_spring_eta" default="1000000.000000" index="10" max="10000000.000000" min="0.000000" name="U. spring eta" unit="1/m^2" value="1000000.000000" />
+        <param abbr="lower_contact_spring_k" default="240.000000" index="11" max="400.000000" min="0.000000" name="L. contact spring k" unit="N/m" value="240.000000" />
+        <param abbr="upper_contact_spring_k" default="24.000000" index="12" max="400.000000" min="0.000000" name="U. contact spring k" unit="N/m" value="24.000000" />
+        <param abbr="lower_contact_spring_eta" default="5000000.000000" index="13" max="10000000.000000" min="0.000000" name="L. contact spring eta" unit="1/m^2" value="5000000.000000" />
+        <param abbr="upper_contact_spring_eta" default="5000000.000000" index="14" max="10000000.000000" min="0.000000" name="U. contact spring eta" unit="1/m^2" value="5000000.000000" />
+        <param abbr="coupling_spring_k" default="25.000000" index="15" max="400.000000" min="0.000000" name="Coupling spring k" unit="N/m" value="25.000000" />
+        <param abbr="critical_width" default="0.000000" index="16" max="0.002000" min="0.000000" name="Critical width" unit="m" value="0.000000" />
+        <param abbr="natural_f0" default="158.000000" index="17" max="500.000000" min="20.000000" name="Natural F0" unit="Hz" value="158.000000" />
+        <param abbr="f0_div_q" default="100.000000" index="18" max="500.000000" min="20.000000" name="dF0/dQ" unit="Hz" value="100.000000" />
+        <param abbr="chink_length" default="0.002000" index="19" max="0.005000" min="0.000000" name="Chink length" unit="m" value="0.002000" />
+      </static_params>
+      <control_params>
+        <param abbr="f0" default="120.000000" index="0" max="600.000000" min="40.000000" name="f0" unit="Hz" value="120.000000" />
+        <param abbr="pressure" default="800.000000" index="1" max="2000.000000" min="0.000000" name="Subglottal pressure" unit="Pa" value="800.000000" />
+        <param abbr="lower_rest_displacement" default="0.000100" index="2" max="0.003000" min="-0.000500" name="Lower rest displacement" unit="m" value="0.000100" />
+        <param abbr="upper_rest_displacement" default="0.000100" index="3" max="0.003000" min="-0.000500" name="Upper rest displacement" unit="m" value="0.000100" />
+        <param abbr="ary_area" default="0.000000" index="4" max="0.000025" min="-0.000025" name="Extra arytenoid area" unit="m^2" value="0.000000" />
+        <param abbr="damping_factor" default="1.000000" index="5" max="3.000000" min="0.300000" name="Damping factor" unit="" value="1.000000" />
+      </control_params>
+      <shapes>
+        <shape name="default">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="800.000000" />
+          <control_param index="2" value="0.000100" />
+          <control_param index="3" value="0.000100" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="1.000000" />
+        </shape>
+        <shape name="modal">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="800.000000" />
+          <control_param index="2" value="0.000067" />
+          <control_param index="3" value="0.000074" />
+          <control_param index="4" value="-0.000025" />
+          <control_param index="5" value="1.000000" />
+        </shape>
+        <shape name="open">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="800.000000" />
+          <control_param index="2" value="0.000515" />
+          <control_param index="3" value="0.000508" />
+          <control_param index="4" value="-0.000025" />
+          <control_param index="5" value="1.000000" />
+        </shape>
+        <shape name="stop">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="800.000000" />
+          <control_param index="2" value="-0.000297" />
+          <control_param index="3" value="-0.000300" />
+          <control_param index="4" value="-0.000025" />
+          <control_param index="5" value="1.000000" />
+        </shape>
+      </shapes>
+    </glottis_model>
+    <glottis_model selected="1" type="Triangular glottis">
+      <static_params>
+        <param abbr="cord_length" default="0.013000" index="0" max="0.020000" min="0.005000" name="Cord length" unit="m" value="0.013000" />
+        <param abbr="lower_rest_thickness" default="0.002400" index="1" max="0.005000" min="0.001000" name="L. rest thickness" unit="m" value="0.002400" />
+        <param abbr="upper_rest_thickness" default="0.000600" index="2" max="0.002000" min="0.000100" name="U. rest thickness" unit="m" value="0.000600" />
+        <param abbr="lower_rest_mass" default="0.000120" index="3" max="0.000200" min="0.000010" name="L. rest mass" unit="kg" value="0.000120" />
+        <param abbr="upper_rest_mass" default="0.000030" index="4" max="0.000200" min="0.000010" name="U. rest mass" unit="kg" value="0.000030" />
+        <param abbr="lower_damping_ratio" default="0.100000" index="5" max="3.000000" min="0.000000" name="L. damping ratio" unit="" value="0.100000" />
+        <param abbr="upper_damping_ratio" default="0.600000" index="6" max="3.000000" min="0.000000" name="U. damping ratio" unit="" value="0.600000" />
+        <param abbr="lower_spring_k" default="80.000000" index="7" max="400.000000" min="0.000000" name="L. spring k" unit="N/m" value="80.000000" />
+        <param abbr="upper_spring_k" default="8.000000" index="8" max="400.000000" min="0.000000" name="U. spring k" unit="N/m" value="8.000000" />
+        <param abbr="lower_contact_spring_k" default="240.000000" index="9" max="500.000000" min="0.000000" name="L. contact spring k" unit="N/m" value="240.000000" />
+        <param abbr="upper_contact_spring_k" default="24.000000" index="10" max="500.000000" min="0.000000" name="U. contact spring k" unit="N/m" value="24.000000" />
+        <param abbr="coupling_spring_k" default="25.000000" index="11" max="400.000000" min="0.000000" name="Coupling spring k" unit="N/m" value="25.000000" />
+        <param abbr="inlet_length" default="0.000500" index="12" max="0.010000" min="0.000000" name="Inlet length" unit="m" value="0.000500" />
+        <param abbr="outlet_length" default="0.000100" index="13" max="0.005000" min="0.000000" name="Outlet length" unit="m" value="0.000100" />
+        <param abbr="natural_f0" default="129.000000" index="14" max="500.000000" min="20.000000" name="Natural F0" unit="Hz" value="129.000000" />
+        <param abbr="f0_div_q" default="125.510000" index="15" max="500.000000" min="20.000000" name="dF0/dQ" unit="Hz" value="125.510000" />
+      </static_params>
+      <control_params>
+        <param abbr="f0" default="120.000000" index="0" max="600.000000" min="40.000000" name="f0" unit="Hz" value="120.000000" />
+        <param abbr="pressure" default="1000.000000" index="1" max="2000.000000" min="0.000000" name="Subglottal pressure" unit="Pa" value="1000.000000" />
+        <param abbr="lower_rest_displacement" default="0.000100" index="2" max="0.003000" min="-0.000500" name="Lower rest displacement" unit="m" value="-0.000297" />
+        <param abbr="upper_rest_displacement" default="0.000100" index="3" max="0.003000" min="-0.000500" name="Upper rest displacement" unit="m" value="-0.000301" />
+        <param abbr="ary_area" default="0.000000" index="4" max="0.000050" min="-0.000010" name="Arytenoid area" unit="m^2" value="0.000000" />
+        <param abbr="aspiration_strength" default="-40.000000" index="5" max="0.000000" min="-40.000000" name="Aspiration strength" unit="dB" value="-35.000000" />
+      </control_params>
+      <shapes>
+        <shape name="default">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="0.000100" />
+          <control_param index="3" value="0.000100" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="-35.000000" />
+        </shape>
+        <shape name="breathy">
+          <control_param index="0" value="96.902981" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="0.000347" />
+          <control_param index="3" value="0.000298" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="0.000000" />
+        </shape>
+        <shape name="pressed">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="0.000000" />
+          <control_param index="3" value="-0.000052" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="-40.000000" />
+        </shape>
+        <shape name="open">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="0.001026" />
+          <control_param index="3" value="0.001026" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="0.000000" />
+        </shape>
+        <shape name="stop">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="-0.000297" />
+          <control_param index="3" value="-0.000301" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="-35.000000" />
+        </shape>
+        <shape name="modal">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="0.000147" />
+          <control_param index="3" value="0.000095" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="-40.000000" />
+        </shape>
+        <shape name="slightly-pressed">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="0.000046" />
+          <control_param index="3" value="0.000000" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="-40.000000" />
+        </shape>
+        <shape name="slightly-breathy">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="0.000245" />
+          <control_param index="3" value="0.000197" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="-20.000000" />
+        </shape>
+        <shape name="fully-open">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="0.002002" />
+          <control_param index="3" value="0.002002" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="0.000000" />
+        </shape>
+      </shapes>
+    </glottis_model>
+    <glottis_model selected="0" type="Four-mass model">
+      <static_params>
+        <param abbr="cord_length" default="0.013000" index="0" max="0.020000" min="0.005000" name="Cord length" unit="m" value="0.013000" />
+        <param abbr="lower_rest_thickness" default="0.002500" index="1" max="0.005000" min="0.001000" name="L. rest thickness" unit="m" value="0.002400" />
+        <param abbr="upper_rest_thickness" default="0.000500" index="2" max="0.002000" min="0.000100" name="U. rest thickness" unit="m" value="0.000600" />
+        <param abbr="rest_mass_1" default="0.000125" index="3" max="0.000200" min="0.000010" name="Rest mass 1" unit="kg" value="0.000120" />
+        <param abbr="rest_mass_2" default="0.000025" index="4" max="0.000200" min="0.000010" name="Rest mass 2" unit="kg" value="0.000030" />
+        <param abbr="rest_mass_3" default="0.000125" index="5" max="0.000200" min="0.000010" name="Rest mass 3" unit="kg" value="0.000120" />
+        <param abbr="rest_mass_4" default="0.000025" index="6" max="0.000200" min="0.000010" name="Rest mass 4" unit="kg" value="0.000030" />
+        <param abbr="damping_ratio_1" default="0.100000" index="7" max="3.000000" min="0.000000" name="Damping ratio 1" unit="" value="0.100000" />
+        <param abbr="damping_ratio_2" default="0.600000" index="8" max="3.000000" min="0.000000" name="Damping ratio 2" unit="" value="0.600000" />
+        <param abbr="damping_ratio_3" default="0.100000" index="9" max="3.000000" min="0.000000" name="Damping ratio 3" unit="" value="0.100000" />
+        <param abbr="damping_ratio_4" default="0.600000" index="10" max="3.000000" min="0.000000" name="Damping ratio 4" unit="" value="0.600000" />
+        <param abbr="spring_constant_1" default="80.000000" index="11" max="400.000000" min="0.000000" name="Spring constant 1" unit="N/m" value="80.000000" />
+        <param abbr="spring_constant_2" default="8.000000" index="12" max="400.000000" min="0.000000" name="Spring constant 2" unit="N/m" value="8.000000" />
+        <param abbr="spring_constant_3" default="80.000000" index="13" max="400.000000" min="0.000000" name="Spring constant 3" unit="N/m" value="80.000000" />
+        <param abbr="spring_constant_4" default="8.000000" index="14" max="400.000000" min="0.000000" name="Spring constant 4" unit="N/m" value="8.000000" />
+        <param abbr="lower_contact_spring_k" default="240.000000" index="15" max="400.000000" min="0.000000" name="L. contact spring k" unit="N/m" value="240.000000" />
+        <param abbr="upper_contact_spring_k" default="24.000000" index="16" max="400.000000" min="0.000000" name="U. contact spring k" unit="N/m" value="24.000000" />
+        <param abbr="right_coupling_spring_k" default="25.000000" index="17" max="400.000000" min="0.000000" name="Right coupling spring k" unit="N/m" value="25.000000" />
+        <param abbr="left_coupling_spring_k" default="25.000000" index="18" max="400.000000" min="0.000000" name="Left coupling spring k" unit="N/m" value="25.000000" />
+        <param abbr="inlet_length" default="0.004000" index="19" max="0.010000" min="0.000000" name="Inlet length" unit="m" value="0.000500" />
+        <param abbr="outlet_length" default="0.001000" index="20" max="0.005000" min="0.000000" name="Outlet length" unit="m" value="0.000100" />
+        <param abbr="natural_f0" default="158.000000" index="21" max="500.000000" min="20.000000" name="Natural F0" unit="Hz" value="129.000000" />
+        <param abbr="f0_div_p" default="0.000000" index="22" max="0.100000" min="-0.100000" name="dF0/dP" unit="Hz/Pa" value="-0.010000" />
+        <param abbr="f0_div_q" default="100.000000" index="23" max="500.000000" min="20.000000" name="dF0/dQ" unit="Hz" value="125.510000" />
+      </static_params>
+      <control_params>
+        <param abbr="f0" default="120.000000" index="0" max="600.000000" min="40.000000" name="f0" unit="Hz" value="120.000000" />
+        <param abbr="pressure" default="1000.000000" index="1" max="2000.000000" min="0.000000" name="Subglottal pressure" unit="Pa" value="1000.000000" />
+        <param abbr="lower_rest_displacement" default="0.000100" index="2" max="0.003000" min="-0.000500" name="Lower rest displacement" unit="m" value="0.000100" />
+        <param abbr="upper_rest_displacement" default="0.000100" index="3" max="0.003000" min="-0.000500" name="Upper rest displacement" unit="m" value="0.000100" />
+        <param abbr="ary_area" default="0.000000" index="4" max="0.000050" min="-0.000010" name="Arytenoid area" unit="m^2" value="0.000000" />
+        <param abbr="symmetry_degree" default="1.000000" index="5" max="1.000000" min="0.000000" name="Degree of symmetry" unit="" value="1.000000" />
+        <param abbr="damping_factor" default="1.000000" index="6" max="3.000000" min="0.300000" name="Damping factor" unit="" value="1.000000" />
+      </control_params>
+      <shapes>
+        <shape name="default">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="0.000100" />
+          <control_param index="3" value="0.000100" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="1.000000" />
+          <control_param index="6" value="1.000000" />
+        </shape>
+        <shape name="modal">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="0.000133" />
+          <control_param index="3" value="0.000133" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="1.000000" />
+          <control_param index="6" value="1.000000" />
+        </shape>
+        <shape name="open">
+          <control_param index="0" value="120.000000" />
+          <control_param index="1" value="1000.000000" />
+          <control_param index="2" value="0.001002" />
+          <control_param index="3" value="0.000998" />
+          <control_param index="4" value="0.000000" />
+          <control_param index="5" value="1.000000" />
+          <control_param index="6" value="1.000000" />
+        </shape>
+      </shapes>
+    </glottis_model>
+  </glottis_models>
+</speaker>
