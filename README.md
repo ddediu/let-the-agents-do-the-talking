@@ -1,4 +1,4 @@
-# Let the agents do the tlking (data and code)
+# Let the agents do the talking (data and code)
 
 Data and code accompanying **Rick Janssen's** PhD thesis *Let the agents do the talking*.
 More details are available in the thesis itself (not yet published).
@@ -25,7 +25,7 @@ This repository is structured by chapters:
     + `source`: the (unless specified, GPLv3-governed) source code for:
       + `Agent`: the full agent code (`Java` and `Python`)
       + `bezier`: the code for the Bézier hard palate shape (`Python`)
-      + `NativeLib`: the interface to VTL (`Java` and `Python`)
+      + `NativeLib`: the interface to VTL (`Java`)
       + `VTL`: placeholder for the modified VTL2.1 code (`C++`).
 
 
