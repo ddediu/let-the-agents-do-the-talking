@@ -5,7 +5,7 @@ Software has been tested on and developed for Windows 7 with:
 	-Microsoft Visual C++ 2012 x64
 	-Python 2.x x64
 
-This directory contains the following folders:
+This directory contains the following folders and files:
 
 ./binaries/agent/		Windows binaries to run you own agent experiments
 ./binaries/standalone/	Standalone executable VTL with GUI, and python script that was used to compress agent-data as was done used in the dissertation
@@ -14,5 +14,6 @@ This directory contains the following folders:
 ./source/bezier/		Cython hard palate code
 ./source/NativeLib		JNI interface source code for bridging Java and C++
 ./source/VTL			Modified VTL C++ code as was used in the dissertation
+./Training Vowels - Guide.pdf	The detailed description of the target sounds used for training
 
 More information is available in Appendix A in the disseration.
