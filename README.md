@@ -7,6 +7,8 @@ Most of the code and data are (c) Rick Janseen, with contributions from Scott R.
 
 This repository is structured by chapters:
 
+  - `chapter3` contains plots related to the MTurk data described in **Chapter 3**.
+
   - `chapter4` contains the data and code relevant for **Chapter 4**, which deals with the influence of larynx height on vowel learning and production:
     + `data` contains the speaker model (`JD2.speaker.bz2`) and the results from running the model (`data.csv.bz2`) BZ2-compressed
     + `r_scripts` contains the Rmarkdown script for analyzing the data (`rick-larynx-height.Rmd`)
