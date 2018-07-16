@@ -1,7 +1,7 @@
 # Let the agents do the talking (data and code)
 
 Data and code accompanying **Rick Janssen's** PhD thesis *Let the agents do the talking*.
-More details are available in the thesis itself (not yet published).
+More details are available in the thesis itself, available in the **JanssenPhDThesis2018.pdf** file (please note that until the official defense of the thesis, 30/09/2018, this is but a placeholder for the actual fulltext).
 
 Most of the code and data are (c) Rick Janseen, with contributions from Scott R. Moisik and Dan Dediu.
 
