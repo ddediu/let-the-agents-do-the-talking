@@ -3,7 +3,7 @@
 Data and code accompanying **Rick Janssen's** PhD thesis *Let the agents do the talking*.
 More details are available in the thesis itself, available in the **JanssenPhDThesis2018.pdf** file.
 
-Most of the code and data are (c) Rick Janseen, with contributions from Scott R. Moisik and Dan Dediu.
+Most of the code and data are (c) Rick Janssen, with contributions from Scott R. Moisik and Dan Dediu.
 
 This repository is structured by chapters:
 
